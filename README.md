@@ -8,4 +8,5 @@
 |     |--step3.go
 |     |--step4.go
 |  |--main.go
+|  |--workflow.json
 ```
