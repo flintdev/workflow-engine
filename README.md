@@ -26,8 +26,8 @@ package main
 
 import {
   "encoding/json"
-	"fmt"
-	"io/ioutil"
+  "fmt"
+  "io/ioutil"
   workflow1 "workflows/workflow1/init"
   workflowFramework "flint/workflow-framework"
 }
