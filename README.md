@@ -40,3 +40,14 @@ func main() {
   task1.listen()
 }
 ```
+
+#### step1.go
+
+```go
+package steps
+
+func execute(stepData, flowData, handler) {
+  // ...
+  handler.updateFlowData(newFlowData);
+}
+```
