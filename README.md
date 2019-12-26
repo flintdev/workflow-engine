@@ -1,4 +1,4 @@
-# workflow-framework
+# workflow-engine
 
 ## File structure
 
