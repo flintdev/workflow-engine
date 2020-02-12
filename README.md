@@ -14,7 +14,7 @@
 |        |--step4.go
 |      |--trigger.go
 |      |--definition.json
-|      |--init.go
+|      |--index.go
 ```
 
 ## File content
