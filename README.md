@@ -28,7 +28,7 @@ import {
   "encoding/json"
   "fmt"
   "io/ioutil"
-  workflow1 "workflows/workflow1/init"
+  workflow1 "workflows/workflow1"
   workflowFramework "flint/workflow-framework"
 }
 
