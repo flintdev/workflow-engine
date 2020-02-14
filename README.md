@@ -51,3 +51,19 @@ func execute(stepData, flowData, handler) {
   handler.updateFlowData(newFlowData);
 }
 ```
+
+#### trigger.go
+
+```go
+package workflow1
+
+struct Event {
+  type "add"|"delete"|"update",
+  object Dictionary,
+  model: string
+}
+
+func TiggerCondition(event: Event) {;
+  return event.model == "expense" && event.type == "update" &&  event.object.approvalStatus == "approved";
+}
+```
