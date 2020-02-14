@@ -1,0 +1,6 @@
+apiVersion: flint.flint.com/v1
+kind: Expense
+metadata:
+  name: expense01
+spec:
+  user: gadai

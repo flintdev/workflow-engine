@@ -1,0 +1,9 @@
+apiVersion: flint.flint.com/v1
+kind: WorkFlow
+metadata:
+  name: workflow-sample-01
+spec:
+  steps:
+    - name: step1
+      output: "test"
+      status: "complete"

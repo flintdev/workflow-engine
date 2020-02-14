@@ -1,0 +1,116 @@
+{
+  "name": "test01",
+  "startAt": "step1",
+  "steps": {
+    "step1": {
+      "props": {
+        "label": "step1",
+        "type": "Code Block",
+        "group": "Standard",
+        "category": "Automation"
+      },
+      "data": {
+        "code": "somecode",
+        "isAsync": false
+      },
+      "nextSteps": [
+        {
+          "key": "step1.result",
+          "value": "Success",
+          "operator": "=",
+          "stepLabels": [
+            "step2"
+          ]
+        },
+        {
+          "key": "step1.result",
+          "value": "Failure",
+          "operator": "=",
+          "stepLabels": [
+            "step3"
+          ]
+        }
+      ]
+    },
+    "step2": {
+      "props": {
+        "label": "step2",
+        "type": "Code Block",
+        "group": "Standard",
+        "category": "Automation"
+      },
+      "data": {
+        "code": "somecode",
+        "isAsync": false
+      },
+      "nextSteps": [
+        {
+          "key": "step2.result",
+          "value": "Always",
+          "operator": "=",
+          "stepLabels": [
+            "step4"
+          ]
+        }
+      ]
+    },
+    "step3": {
+      "props": {
+        "label": "step3",
+        "type": "Code Block",
+        "group": "Standard",
+        "category": "Automation"
+      },
+      "data": {
+        "code": "somecode",
+        "isAsync": false
+      },
+      "nextSteps": [
+        {
+          "key": "step2.result",
+          "value": "Always",
+          "operator": "=",
+          "stepLabels": [
+            "step4"
+          ]
+        }
+      ]
+    },
+    "step4": {
+      "props": {
+        "label": "step4",
+        "type": "Code Block",
+        "group": "Standard",
+        "category": "Automation"
+      },
+      "data": {
+        "code": "somecode",
+        "isAsync": false
+      },
+      "nextSteps": [
+        {
+          "key": "step2.result",
+          "value": "Always",
+          "operator": "=",
+          "stepLabels": [
+            "end"
+          ]
+        }
+      ]
+    },
+    "end1": {
+      "props": {
+        "label": "end",
+        "type": "end",
+        "group": "Standard",
+        "category": "Automation"
+      },
+      "data": {
+        "code": "somecode",
+        "isAsync": false
+      },
+      "nextSteps": [
+      ]
+    }
+  }
+}
