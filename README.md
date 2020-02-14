@@ -63,7 +63,7 @@ struct Event {
   model: string
 }
 
-func TiggerCondition(event: Event) {;
+func TiggerCondition(event: Event) {
   return event.model == "expense" && event.type == "update" &&  event.object.approvalStatus == "approved";
 }
 ```
