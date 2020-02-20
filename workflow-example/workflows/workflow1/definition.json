@@ -1,20 +1,8 @@
 {
   "name": "test01",
   "startAt": "step1",
-  "namespace": "default",
-  "gvr": {
-    "group": "flint.flint.com",
-    "version": "v1",
-    "resource": "expenses"
-  },
   "steps": {
     "step1": {
-      "props": {
-        "label": "step1",
-        "type": "Code Block",
-        "group": "Standard",
-        "category": "Automation"
-      },
       "nextSteps": [
         {
           "name": "step2",
@@ -35,12 +23,6 @@
       ]
     },
     "step2": {
-      "props": {
-        "label": "step2",
-        "type": "Code Block",
-        "group": "Standard",
-        "category": "Automation"
-      },
       "nextSteps": [
         {
           "name": "step4"
@@ -48,12 +30,6 @@
       ]
     },
     "step3": {
-      "props": {
-        "label": "step3",
-        "type": "Code Block",
-        "group": "Standard",
-        "category": "Automation"
-      },
       "nextSteps": [
         {
           "name": "step4"
@@ -61,12 +37,6 @@
       ]
     },
     "step4": {
-      "props": {
-        "label": "step4",
-        "type": "Code Block",
-        "group": "Standard",
-        "category": "Automation"
-      },
       "nextSteps": [
         {
           "name": "end"
@@ -74,12 +44,6 @@
       ]
     },
     "end": {
-      "props": {
-        "label": "end",
-        "type": "end",
-        "group": "Standard",
-        "category": "Automation"
-      },
       "nextSteps": [
       ]
     }
