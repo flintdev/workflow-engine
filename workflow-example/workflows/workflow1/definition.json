@@ -1,6 +1,12 @@
 {
   "name": "test01",
   "startAt": "step1",
+  "namespace": "default",
+  "gvr": {
+    "group": "flint.flint.com",
+    "version": "v1",
+    "resource": "expenses"
+  },
   "steps": {
     "step1": {
       "props": {
@@ -9,26 +15,22 @@
         "group": "Standard",
         "category": "Automation"
       },
-      "data": {
-        "code": "somecode",
-        "isAsync": false
-      },
       "nextSteps": [
         {
-          "key": "step1.result",
-          "value": "Success",
-          "operator": "=",
-          "stepLabels": [
-            "step2"
-          ]
+          "name": "step2",
+          "condition": {
+            "key": "step1.result",
+            "value": "Success",
+            "operator": "="
+          }
         },
         {
-          "key": "step1.result",
-          "value": "Failure",
-          "operator": "=",
-          "stepLabels": [
-            "step3"
-          ]
+          "name": "step3",
+          "condition": {
+            "key": "step1.result",
+            "value": "Failure",
+            "operator": "="
+          }
         }
       ]
     },
@@ -39,18 +41,9 @@
         "group": "Standard",
         "category": "Automation"
       },
-      "data": {
-        "code": "somecode",
-        "isAsync": false
-      },
       "nextSteps": [
         {
-          "key": "step2.result",
-          "value": "Always",
-          "operator": "=",
-          "stepLabels": [
-            "step4"
-          ]
+          "name": "step4"
         }
       ]
     },
@@ -61,18 +54,9 @@
         "group": "Standard",
         "category": "Automation"
       },
-      "data": {
-        "code": "somecode",
-        "isAsync": false
-      },
       "nextSteps": [
         {
-          "key": "step2.result",
-          "value": "Always",
-          "operator": "=",
-          "stepLabels": [
-            "step4"
-          ]
+          "name": "step4"
         }
       ]
     },
@@ -83,31 +67,18 @@
         "group": "Standard",
         "category": "Automation"
       },
-      "data": {
-        "code": "somecode",
-        "isAsync": false
-      },
       "nextSteps": [
         {
-          "key": "step2.result",
-          "value": "Always",
-          "operator": "=",
-          "stepLabels": [
-            "end"
-          ]
+          "name": "end"
         }
       ]
     },
-    "end1": {
+    "end": {
       "props": {
         "label": "end",
         "type": "end",
         "group": "Standard",
         "category": "Automation"
-      },
-      "data": {
-        "code": "somecode",
-        "isAsync": false
       },
       "nextSteps": [
       ]
