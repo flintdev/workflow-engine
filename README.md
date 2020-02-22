@@ -5,16 +5,21 @@
 ```
 |--workflow-example
 |  |--main.go
+|  |--config.json
 |  |--workflows
 |    |--workflow1
 |      |--steps
-|        |--step1.go
-|        |--step2.go
-|        |--step3.go
+         |--step1
+|          |--step1.go
+|        |--step2
+|          |--step2.go
+|        |--step3
+|          |--step3.go
+|          |--step4
 |        |--step4.go
 |      |--trigger.go
 |      |--definition.json
-|      |--index.go
+|      |--init.go
 ```
 
 ## File content
@@ -24,32 +29,36 @@
 ```go
 package main
 
-import {
-  "encoding/json"
-  "fmt"
-  "io/ioutil"
-  workflow1 "workflows/workflow1"
-  workflowFramework "flint/workflow-framework"
-}
+import (
+	workflowFramework "workflow-engine/engine"
+	workflow1 "workflow-engine/workflow-example/workflows/workflow1"
+)
 
 func main() {
-  task1 = workflowFramework.CreateTask()
-  task1.registerWorkflowDefinition(workflow1.definition)
-  task1.registerSteps(workflow1.steps)
-  task1.registerTrigger(workflow1.trigger)
-  task1.listen()
+	app := workflowFramework.CreateApp()
+	app.RegisterWorkflow(workflow1.Definition, workflow1.Steps, workflow1.Trigger)
+	app.Start()
 }
+
 ```
 
 #### step1.go
 
 ```go
-package steps
+package step1
 
-func execute(stepData, flowData, handler) {
-  // ...
-  handler.updateFlowData(newFlowData);
+import (
+	"fmt"
+	"time"
+	"workflow-engine/handler"
+)
+
+func Execute(kubeconfig *string, objName string) {
+	path := "step1.field1.field2"
+	value := "test1"
+	handler.SetFlowData(kubeconfig, objName, path, value)
 }
+
 ```
 
 #### trigger.go
@@ -57,13 +66,12 @@ func execute(stepData, flowData, handler) {
 ```go
 package workflow1
 
-struct Event {
-  type "add"|"delete"|"update",
-  object Dictionary,
-  model: string
+import (
+	workflowFramework "workflow-engine/engine"
+)
+
+func TriggerCondition(event workflowFramework.Event) bool {
+	return event.Model == "expense" && event.Type == "ADDED"
 }
 
-func TiggerCondition(event: Event) {
-  return event.model == "expense" && event.type == "update" &&  event.object.approvalStatus == "approved";
-}
 ```
