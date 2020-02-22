@@ -2,9 +2,10 @@ package step3
 
 import (
 	"fmt"
+	"time"
 )
 
-func Execute() string {
+func Execute(kubeconfig *string, objName string) {
 	fmt.Println("running step3")
-	return "step3 result"
+	time.Sleep(5 * time.Second)
 }

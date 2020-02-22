@@ -7,8 +7,8 @@
         {
           "name": "step2",
           "condition": {
-            "key": "step1.result",
-            "value": "Success",
+            "key": "step1.field1.field2",
+            "value": "test1",
             "operator": "="
           }
         },

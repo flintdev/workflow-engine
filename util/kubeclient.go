@@ -44,7 +44,7 @@ func CreateObject(kubeconfig *string, namespace string, group string, version st
 	fmt.Println(result)
 }
 
-func GetObj(kubeconfig *string, namespace string, group string, version string, resource string) *unstructured.Unstructured {
+func GetObj(kubeconfig *string, namespace string, group string, version string, resource string, objName string) *unstructured.Unstructured {
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		panic(err)
@@ -54,7 +54,7 @@ func GetObj(kubeconfig *string, namespace string, group string, version string, 
 		panic(err)
 	}
 	res := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
-	result, getErr := client.Resource(res).Namespace(namespace).Get("workflow-sample-01", metav1.GetOptions{})
+	result, getErr := client.Resource(res).Namespace(namespace).Get(objName, metav1.GetOptions{})
 	if getErr != nil {
 		panic(fmt.Errorf("failed to get latest version of Expense: %v", getErr))
 	}
@@ -78,11 +78,6 @@ func ListObj(kubeconfig *string, namespace string, group string, version string,
 	}
 
 	return list
-}
-
-func UpdateObj(kubeconfig *string, namespace string, group string, version string, resource string) {
-
-	// todo updateobject
 }
 
 func WatchObject(kubeconfig *string, namespace string, group string, version string, resource string) <-chan watch.Event {

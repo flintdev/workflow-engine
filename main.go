@@ -6,9 +6,7 @@ import (
 )
 
 func main() {
-	task1 := workflowFramework.CreateTask()
-	task1.RegisterWorkflowDefinition(workflow1.Definition)
-	task1.RegisterSteps(workflow1.Steps)
-	task1.RegisterTrigger(workflow1.Trigger)
-	task1.Listen()
+	app := workflowFramework.CreateApp()
+	app.RegisterWorkflow(workflow1.Definition, workflow1.Steps, workflow1.Trigger)
+	app.Start()
 }

@@ -5,5 +5,5 @@ import (
 )
 
 func TriggerCondition(event workflowFramework.Event) bool {
-	return event.Model == "expense" && event.Type == "ADD"
+	return event.Model == "expense" && event.Type == "ADDED"
 }

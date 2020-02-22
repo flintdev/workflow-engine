@@ -2,9 +2,14 @@ package step1
 
 import (
 	"fmt"
+	"time"
+	"workflow-engine/handler"
 )
 
-func Execute() string {
+func Execute(kubeconfig *string, objName string) {
 	fmt.Println("running step1")
-	return "Success"
+	path := "step1.field1.field2"
+	value := "test1"
+	handler.SetFlowData(kubeconfig, objName, path, value)
+	time.Sleep(5 * time.Second)
 }

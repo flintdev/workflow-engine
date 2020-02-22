@@ -36,23 +36,29 @@ spec:
             spec:
               description: WorkFlowSpec defines the desired state of WorkFlow
               properties:
+                flowData:
+                  type: string
                 steps:
                   items:
                     properties:
                       name:
                         type: string
-                      output:
+                      startAt:
+                        type: string
+                      endAt:
                         type: string
                       status:
                         type: string
                     required:
                       - name
-                      - output
+                      - startAt
                       - status
+                      - endAt
                     type: object
                   type: array
               required:
                 - steps
+                - flowData
               type: object
             status:
               description: WorkFlowStatus defines the observed state of WorkFlow
