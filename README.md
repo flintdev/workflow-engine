@@ -31,12 +31,14 @@ package main
 
 import (
 	workflowFramework "workflow-engine/engine"
+	"workflow-engine/workflow-example/workflows"
 	workflow1 "workflow-engine/workflow-example/workflows/workflow1"
 )
 
 func main() {
 	app := workflowFramework.CreateApp()
 	app.RegisterWorkflow(workflow1.Definition, workflow1.Steps, workflow1.Trigger)
+	app.RegisterConfig(workflows.ParseConfig)
 	app.Start()
 }
 
@@ -53,11 +55,14 @@ import (
 	"workflow-engine/handler"
 )
 
-func Execute(kubeconfig *string, objName string) {
+func Execute(handler handler.Handler) {
+	fmt.Println("running step1")
 	path := "step1.field1.field2"
 	value := "test1"
-	handler.SetFlowData(kubeconfig, objName, path, value)
+	handler.FlowData.Set(path, value)
+	time.Sleep(5 * time.Second)
 }
+
 
 ```
 
