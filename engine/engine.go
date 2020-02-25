@@ -110,14 +110,16 @@ func (wi *WorkflowInstance) RegisterTrigger(f func(event Event) bool) {
 	wi.Trigger = trigger
 }
 
+func (app *App) RegisterConfig(f func() Config) {
+	c := f()
+	app.ModelGVRMap = c.GVRMap
+}
+
 func (app *App) RegisterWorkflow(definition func() Workflow, steps func() map[string]func(kubeconfig *string, objName string), trigger func(event Event) bool) {
 	workflowInstance := CreateWorkflowInstance()
 	workflowInstance.RegisterWorkflowDefinition(definition)
 	workflowInstance.RegisterSteps(steps)
 	workflowInstance.RegisterTrigger(trigger)
-	//todo change to relative path
-	config := LoadConfig("/Users/gaoxindai/go/src/workflow-engine/workflow-example/config.json")
-	app.ModelGVRMap = config.GVRMap
 	app.WorkflowInstances = append(app.WorkflowInstances, workflowInstance)
 }
 

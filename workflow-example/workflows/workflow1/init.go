@@ -9,9 +9,7 @@ import (
 )
 
 func Definition() workflowFramework.Workflow {
-
-	//todo change to relative path
-	w := workflowFramework.ParseDefinition("/Users/gaoxindai/go/src/workflow-engine/workflow-example/workflows/workflow1/definition.json")
+	w := ParseDefinition()
 	return w
 }
 
@@ -28,3 +26,5 @@ func Steps() map[string]func(kubeconfig *string, objName string) {
 func Trigger(event workflowFramework.Event) bool {
 	return TriggerCondition(event)
 }
+
+type FilePath string
