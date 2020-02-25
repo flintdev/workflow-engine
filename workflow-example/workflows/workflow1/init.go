@@ -2,6 +2,7 @@ package workflow1
 
 import (
 	workflowFramework "workflow-engine/engine"
+	"workflow-engine/handler"
 	"workflow-engine/workflow-example/workflows/workflow1/steps/step1"
 	"workflow-engine/workflow-example/workflows/workflow1/steps/step2"
 	"workflow-engine/workflow-example/workflows/workflow1/steps/step3"
@@ -13,8 +14,8 @@ func Definition() workflowFramework.Workflow {
 	return w
 }
 
-func Steps() map[string]func(kubeconfig *string, objName string) {
-	StepFuncMap := map[string]func(kubeconfig *string, objName string){
+func Steps() map[string]func(handler handler.Handler) {
+	StepFuncMap := map[string]func(handler handler.Handler){
 		"step1": step1.Execute,
 		"step2": step2.Execute,
 		"step3": step3.Execute,

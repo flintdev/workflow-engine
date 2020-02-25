@@ -6,10 +6,10 @@ import (
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"strings"
+	"workflow-engine/handler"
+	"workflow-engine/handler/flowdata"
 	"workflow-engine/util"
 )
-
-type FlowData map[string]string
 
 type StepCondition struct {
 	Key      string `json:"key"`
@@ -33,9 +33,11 @@ type Workflow struct {
 }
 
 type WorkflowInstance struct {
-	Workflow Workflow
-	StepFunc map[string]func(kubeconfig *string, objName string)
-	Trigger  func(event Event) bool
+	Workflow   Workflow
+	StepFunc   map[string]func(handler handler.Handler)
+	Trigger    func(event Event) bool
+	Kubeconfig *string
+	WFObjName  string
 }
 
 type App struct {
@@ -100,7 +102,7 @@ func (wi *WorkflowInstance) RegisterWorkflowDefinition(f func() Workflow) {
 	wi.Workflow = w
 }
 
-func (wi *WorkflowInstance) RegisterSteps(f func() map[string]func(kubeconfig *string, objName string)) {
+func (wi *WorkflowInstance) RegisterSteps(f func() map[string]func(handler handler.Handler)) {
 	stepFuncMap := f()
 	wi.StepFunc = stepFuncMap
 }
@@ -115,7 +117,7 @@ func (app *App) RegisterConfig(f func() Config) {
 	app.ModelGVRMap = c.GVRMap
 }
 
-func (app *App) RegisterWorkflow(definition func() Workflow, steps func() map[string]func(kubeconfig *string, objName string), trigger func(event Event) bool) {
+func (app *App) RegisterWorkflow(definition func() Workflow, steps func() map[string]func(handler handler.Handler), trigger func(event Event) bool) {
 	workflowInstance := CreateWorkflowInstance()
 	workflowInstance.RegisterWorkflowDefinition(definition)
 	workflowInstance.RegisterSteps(steps)
@@ -143,8 +145,15 @@ func (app *App) Start() {
 			for _, wi := range app.WorkflowInstances {
 				if wi.Trigger(e) {
 					wfObjName := util.GenerateWorkflowObjName()
+					wi.WFObjName = wfObjName
+					wi.Kubeconfig = kubeconfig
+					var fd flowdata.FlowData
+					fd.Kubeconfig = kubeconfig
+					fd.WFObjName = wfObjName
+					var h handler.Handler
+					h.FlowData = fd
 					util.CreateEmptyWorkflowObject(kubeconfig, wfObjName)
-					wi.ExecuteWorkflow(kubeconfig, wfObjName)
+					wi.ExecuteWorkflow(h)
 				}
 			}
 		}

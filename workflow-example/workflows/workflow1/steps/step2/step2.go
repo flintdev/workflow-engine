@@ -6,10 +6,10 @@ import (
 	"workflow-engine/handler"
 )
 
-func Execute(kubeconfig *string, objName string) {
+func Execute(handler handler.Handler) {
 	fmt.Println("running step2")
 	path := "step2.field1.field2"
 	value := "test2"
-	handler.SetFlowData(kubeconfig, objName, path, value)
+	handler.FlowData.Set(path, value)
 	time.Sleep(5 * time.Second)
 }

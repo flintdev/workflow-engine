@@ -6,10 +6,9 @@ import (
 	"workflow-engine/util"
 )
 
-func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, objName string) {
-	//todo
-	// 1. handle no condition match
-	// 2. handle code execution exception
+func (wi *WorkflowInstance) ExecuteWorkflow(handler handler.Handler) {
+	kubeconfig := wi.Kubeconfig
+	objName := wi.WFObjName
 	currentStep := ""
 	nextStep := ""
 	fmt.Println("Executing workflow started")
@@ -17,7 +16,7 @@ func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, objName string) 
 	currentStep = startAt
 	for {
 		util.AddStepToWorkflowObject(kubeconfig, currentStep, objName)
-		wi.StepFunc[currentStep](kubeconfig, objName)
+		wi.StepFunc[currentStep](handler)
 		nextSteps := wi.Workflow.Steps[currentStep].NextSteps
 		for _, step := range nextSteps {
 			emptyCondition := StepCondition{}
@@ -30,7 +29,7 @@ func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, objName string) 
 			key := condition.Key
 			value := condition.Value
 			operator := condition.Operator
-			flowDataResult := handler.GetFlowDataByPath(kubeconfig, objName, key)
+			flowDataResult := handler.FlowData.Get(key)
 			fmt.Println("successfully get value of ", key, flowDataResult)
 			switch operator {
 			case "=":
