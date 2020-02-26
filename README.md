@@ -5,9 +5,10 @@
 ```
 |--workflow-example
 |  |--main.go
-|  |--config.json
+|  |--go.mod
 |  |--workflows
 |    |--workflow1
+|    |--config.go
 |      |--steps
          |--step1
 |          |--step1.go
@@ -18,7 +19,7 @@
 |          |--step4
 |        |--step4.go
 |      |--trigger.go
-|      |--definition.json
+|      |--definition.go
 |      |--init.go
 ```
 
@@ -30,9 +31,9 @@
 package main
 
 import (
-	workflowFramework "workflow-engine/engine"
-	"workflow-engine/workflow-example/workflows"
-	workflow1 "workflow-engine/workflow-example/workflows/workflow1"
+	workflowFramework "github.com/flintdev/workflow-engine/engine"
+	"workflow-example/workflows"
+	workflow1 "workflow-example/workflows/workflow1"
 )
 
 func main() {
@@ -41,6 +42,7 @@ func main() {
 	app.RegisterConfig(workflows.ParseConfig)
 	app.Start()
 }
+
 
 ```
 
@@ -51,8 +53,7 @@ package step1
 
 import (
 	"fmt"
-	"time"
-	"workflow-engine/handler"
+	"github.com/flintdev/workflow-engine/handler"
 )
 
 func Execute(handler handler.Handler) {
@@ -60,8 +61,8 @@ func Execute(handler handler.Handler) {
 	path := "step1.field1.field2"
 	value := "test1"
 	handler.FlowData.Set(path, value)
-	time.Sleep(5 * time.Second)
 }
+
 
 
 ```
@@ -72,7 +73,7 @@ func Execute(handler handler.Handler) {
 package workflow1
 
 import (
-	workflowFramework "workflow-engine/engine"
+	workflowFramework "github.com/flintdev/workflow-engine/engine"
 )
 
 func TriggerCondition(event workflowFramework.Event) bool {
