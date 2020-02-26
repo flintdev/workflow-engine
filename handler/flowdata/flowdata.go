@@ -1,6 +1,6 @@
 package flowdata
 
-import "workflow-engine/util"
+import "github.com/flintdev/workflow-engine/util"
 
 type FlowData struct {
 	Kubeconfig *string

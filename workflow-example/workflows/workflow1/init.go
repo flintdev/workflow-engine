@@ -1,12 +1,12 @@
 package workflow1
 
 import (
-	workflowFramework "workflow-engine/engine"
-	"workflow-engine/handler"
-	"workflow-engine/workflow-example/workflows/workflow1/steps/step1"
-	"workflow-engine/workflow-example/workflows/workflow1/steps/step2"
-	"workflow-engine/workflow-example/workflows/workflow1/steps/step3"
-	"workflow-engine/workflow-example/workflows/workflow1/steps/step4"
+	workflowFramework "github.com/flintdev/workflow-engine/engine"
+	"github.com/flintdev/workflow-engine/handler"
+	"github.com/flintdev/workflow-engine/workflow-example/workflows/workflow1/steps/step1"
+	"github.com/flintdev/workflow-engine/workflow-example/workflows/workflow1/steps/step2"
+	"github.com/flintdev/workflow-engine/workflow-example/workflows/workflow1/steps/step3"
+	"github.com/flintdev/workflow-engine/workflow-example/workflows/workflow1/steps/step4"
 )
 
 func Definition() workflowFramework.Workflow {

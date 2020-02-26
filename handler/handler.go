@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"workflow-engine/handler/flowdata"
+	"github.com/flintdev/workflow-engine/handler/flowdata"
 )
 
 type Handler struct {

@@ -3,7 +3,6 @@ module github.com/flintdev/workflow-engine
 go 1.13
 
 require (
-	github.com/flintdev/workflow-engine v0.1.0
 	github.com/google/uuid v1.1.1
 	github.com/imdario/mergo v0.3.8 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect

@@ -3,7 +3,7 @@ package workflow1
 import (
 	"encoding/json"
 	"fmt"
-	workflowFramework "workflow-engine/engine"
+	workflowFramework "github.com/flintdev/workflow-engine/engine"
 )
 
 func ParseDefinition() workflowFramework.Workflow {

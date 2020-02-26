@@ -1,9 +1,9 @@
 package main
 
 import (
-	workflowFramework "workflow-engine/engine"
-	"workflow-engine/workflow-example/workflows"
-	workflow1 "workflow-engine/workflow-example/workflows/workflow1"
+	workflowFramework "github.com/flintdev/workflow-engine/engine"
+	"github.com/flintdev/workflow-engine/workflow-example/workflows"
+	workflow1 "github.com/flintdev/workflow-engine/workflow-example/workflows/workflow1"
 )
 
 func main() {

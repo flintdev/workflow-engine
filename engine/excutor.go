@@ -2,8 +2,8 @@ package engine
 
 import (
 	"fmt"
-	"workflow-engine/handler"
-	"workflow-engine/util"
+	"github.com/flintdev/workflow-engine/handler"
+	"github.com/flintdev/workflow-engine/util"
 )
 
 func (wi *WorkflowInstance) ExecuteWorkflow(handler handler.Handler) {

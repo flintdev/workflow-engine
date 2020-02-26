@@ -2,8 +2,8 @@ package step3
 
 import (
 	"fmt"
+	"github.com/flintdev/workflow-engine/handler"
 	"time"
-	"workflow-engine/handler"
 )
 
 func Execute(handler handler.Handler) {

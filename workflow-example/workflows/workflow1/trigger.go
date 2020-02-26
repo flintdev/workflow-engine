@@ -1,7 +1,7 @@
 package workflow1
 
 import (
-	workflowFramework "workflow-engine/engine"
+	workflowFramework "github.com/flintdev/workflow-engine/engine"
 )
 
 func TriggerCondition(event workflowFramework.Event) bool {

@@ -3,12 +3,12 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/flintdev/workflow-engine/handler"
+	"github.com/flintdev/workflow-engine/handler/flowdata"
+	"github.com/flintdev/workflow-engine/util"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"strings"
-	"workflow-engine/handler"
-	"workflow-engine/handler/flowdata"
-	"workflow-engine/util"
 )
 
 type StepCondition struct {

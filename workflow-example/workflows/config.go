@@ -3,7 +3,7 @@ package workflows
 import (
 	"encoding/json"
 	"fmt"
-	workflowFramework "workflow-engine/engine"
+	workflowFramework "github.com/flintdev/workflow-engine/engine"
 )
 
 func ParseConfig() workflowFramework.Config {
