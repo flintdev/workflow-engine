@@ -78,6 +78,7 @@ func AddStepToWorkflowObject(kubeconfig *string, stepName string, objName string
 }
 
 func SetWorkflowObjectFlowData(kubeconfig *string, objName string, path string, value string) {
+	path = ParseFlowDataKey(path)
 
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
@@ -115,6 +116,7 @@ func SetWorkflowObjectFlowData(kubeconfig *string, objName string, path string, 
 }
 
 func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path string) string {
+	path = ParseFlowDataKey(path)
 	result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
 
 	flowData, found, err := unstructured.NestedString(result.Object, "spec", "flowData")
@@ -253,4 +255,13 @@ func GenerateWorkflowObjName() string {
 	u := strings.Replace(uuidWithHyphen.String(), "-", "", -1)
 	name := "workflow-" + u
 	return name
+}
+
+func ParseFlowDataKey(path string) string {
+	s := strings.Split(path, ".")
+	if s[0] == "$" {
+		s = s[1:]
+	}
+
+	return strings.Join(s[:], ".")
 }
