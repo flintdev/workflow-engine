@@ -14,12 +14,12 @@ func (wi *WorkflowInstance) ExecuteWorkflow(handler handler.Handler) {
 	fmt.Println("Executing workflow started")
 	startAt := wi.Workflow.StartAt
 	currentStep = startAt
+	emptyCondition := StepCondition{}
 	for {
 		util.AddStepToWorkflowObject(kubeconfig, currentStep, objName)
 		wi.StepFunc[currentStep](handler)
 		nextSteps := wi.Workflow.Steps[currentStep].NextSteps
 		for _, step := range nextSteps {
-			emptyCondition := StepCondition{}
 			nextStepName := step.Name
 			condition := step.Condition
 			if condition == emptyCondition {
@@ -43,7 +43,7 @@ func (wi *WorkflowInstance) ExecuteWorkflow(handler handler.Handler) {
 		fmt.Println("next step: ", nextStep)
 		util.SetWorkflowObjectStepToComplete(kubeconfig, objName, currentStep)
 		currentStep = nextStep
-		if nextStep == "end" {
+		if len(nextSteps) == 0 {
 			break
 		}
 	}
