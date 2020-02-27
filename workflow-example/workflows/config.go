@@ -9,13 +9,18 @@ import (
 func ParseConfig() workflowFramework.Config {
 	var c workflowFramework.Config
 	config := `{
-  "gvr": {
-    "expense": {
-      "group": "flint.flint.com",
-      "version": "v1",
-      "resource": "expenses"
-    }
-  }
+	"gvr": {
+		"approval": {
+			"group": "flint.flint.com",
+			"version": "v1",
+			"resource": "approvals"
+		},
+		"expense": {
+			"group": "flint.flint.com",
+			"version": "v1",
+			"resource": "expenses"
+		}
+	}
 }`
 	err := json.Unmarshal([]byte(config), &c)
 

@@ -1,4 +1,4 @@
-package workflow1
+package workflow2
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 func ParseDefinition() workflowFramework.Workflow {
 	var w workflowFramework.Workflow
 	definition := `{
-  "name": "test01",
+  "name": "test02",
   "startAt": "step1",
   "steps": {
     "step1": {
@@ -17,7 +17,7 @@ func ParseDefinition() workflowFramework.Workflow {
         {
           "name": "step2",
           "condition": {
-            "key": "$.workflow1.step1.field1.field2",
+            "key": "$.workflow2.step1.field1.field2",
             "value": "test1",
             "operator": "="
           }

@@ -1,0 +1,6 @@
+apiVersion: flint.flint.com/v1
+kind: Approval
+metadata:
+  name: approval01
+spec:
+  user: gadai

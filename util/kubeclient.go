@@ -13,6 +13,12 @@ import (
 	"path/filepath"
 )
 
+type GVR struct {
+	Group    string `json:"group"`
+	Version  string `json:"version"`
+	Resource string `json:"resource"`
+}
+
 func GetKubeConfig() *string {
 	var kubeconfig *string
 	if home := homedir.HomeDir(); home != "" {

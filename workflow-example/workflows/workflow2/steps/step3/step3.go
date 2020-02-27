@@ -1,4 +1,4 @@
-package step2
+package step3
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 )
 
 func Execute(handler handler.Handler) {
-	fmt.Println("running step2")
-	path := "$.workflow1.step2.field1.field2"
-	value := "test2"
+	fmt.Println("running workflow2 step3")
+	path := "$.workflow3.step3.field1.field3"
+	value := "test3"
 	handler.FlowData.Set(path, value)
 	time.Sleep(5 * time.Second)
 }

@@ -8,7 +8,9 @@ import (
 	"github.com/flintdev/workflow-engine/util"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/watch"
 	"strings"
+	"sync"
 )
 
 type StepCondition struct {
@@ -126,36 +128,73 @@ func (app *App) RegisterWorkflow(definition func() Workflow, steps func() map[st
 }
 
 func (app *App) Start() {
-	fmt.Println("Started Watching")
 	kubeconfig := util.GetKubeConfig()
 	namespace := "default"
+	var gvrList []GVR
 	for _, element := range app.ModelGVRMap {
-		ch := util.WatchObject(kubeconfig, namespace, element.Group, element.Version, element.Resource)
-		for event := range ch {
-			d := event.Object.(*unstructured.Unstructured)
-			objKind, found, err := unstructured.NestedString(d.Object, "kind")
-			if err != nil || !found {
-				fmt.Printf("kind not found for %s %s: error=%s", element.Resource, d.GetName(), err)
-				continue
-			}
-			e := Event{
-				Type:  string(event.Type),
-				Model: strings.ToLower(objKind),
-			}
-			for _, wi := range app.WorkflowInstances {
-				if wi.Trigger(e) {
-					wfObjName := util.GenerateWorkflowObjName()
-					wi.WFObjName = wfObjName
-					wi.Kubeconfig = kubeconfig
-					var fd flowdata.FlowData
-					fd.Kubeconfig = kubeconfig
-					fd.WFObjName = wfObjName
-					var h handler.Handler
-					h.FlowData = fd
-					util.CreateEmptyWorkflowObject(kubeconfig, wfObjName)
-					wi.ExecuteWorkflow(h)
-				}
+		gvrList = append(gvrList, element)
+	}
+	fmt.Println("start watching")
+	ch := BulkWatchObject(kubeconfig, namespace, gvrList)
+	triggerWorkflow(kubeconfig, ch, app)
+}
+
+func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
+	for event := range ch {
+		d := event.Object.(*unstructured.Unstructured)
+		objKind, found, err := unstructured.NestedString(d.Object, "kind")
+		if err != nil || !found {
+			fmt.Printf("kind not found for %s %s: error=%s\n", objKind, d.GetName(), err)
+			continue
+		}
+		e := Event{
+			Type:  string(event.Type),
+			Model: strings.ToLower(objKind),
+		}
+		for _, wi := range app.WorkflowInstances {
+			if wi.Trigger(e) {
+				wfObjName := util.GenerateWorkflowObjName()
+				wi.WFObjName = wfObjName
+				wi.Kubeconfig = kubeconfig
+				var fd flowdata.FlowData
+				fd.Kubeconfig = kubeconfig
+				fd.WFObjName = wfObjName
+				var h handler.Handler
+				h.FlowData = fd
+				util.CreateEmptyWorkflowObject(kubeconfig, wfObjName)
+				wi.ExecuteWorkflow(h)
 			}
 		}
 	}
+}
+
+func BulkWatchObject(kubeconfig *string, namespace string, gvrList []GVR) <-chan watch.Event {
+
+	var chans []<-chan watch.Event
+	for _, gvr := range gvrList {
+		chans = append(chans, util.WatchObject(kubeconfig, namespace, gvr.Group, gvr.Version, gvr.Resource))
+	}
+	ch := mergeWatchChannels(chans)
+	return ch
+}
+
+func mergeWatchChannels(chans []<-chan watch.Event) <-chan watch.Event {
+	ch := make(chan watch.Event)
+	go func() {
+		var wg sync.WaitGroup
+		wg.Add(len(chans))
+
+		for _, c := range chans {
+			go func(c <-chan watch.Event) {
+				for v := range c {
+					ch <- v
+				}
+				wg.Done()
+			}(c)
+		}
+
+		wg.Wait()
+		close(ch)
+	}()
+	return ch
 }
