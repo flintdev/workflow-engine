@@ -43,7 +43,7 @@ func (wi *WorkflowInstance) ExecuteWorkflow(handler handler.Handler) {
 		fmt.Println("next step: ", nextStep)
 		util.SetWorkflowObjectStepToComplete(kubeconfig, objName, currentStep)
 		currentStep = nextStep
-		if len(nextSteps) == 0 {
+		if len(wi.Workflow.Steps[currentStep].NextSteps) == 0 {
 			break
 		}
 	}
