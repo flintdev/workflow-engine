@@ -195,7 +195,6 @@ func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName st
 
 func GenerateWorkflowObjName() string {
 	uuidWithHyphen := uuid.New()
-	fmt.Println(uuidWithHyphen)
 	u := strings.Replace(uuidWithHyphen.String(), "-", "", -1)
 	name := "workflow-" + u
 	return name

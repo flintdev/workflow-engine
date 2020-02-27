@@ -7,7 +7,7 @@ import (
 )
 
 func Execute(handler handler.Handler) {
-	fmt.Println("running step4")
+	fmt.Println("running workflow1  step4")
 	path := "$.workflow1.step2.field1.field2"
 	value := "test4"
 	handler.FlowData.Set(path, value)

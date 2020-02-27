@@ -11,12 +11,13 @@ func (wi *WorkflowInstance) ExecuteWorkflow(handler handler.Handler) {
 	objName := wi.WFObjName
 	currentStep := ""
 	nextStep := ""
-	fmt.Println("Executing workflow started")
+	fmt.Printf("Start Executing workflow %s\n", wi.Workflow.Name)
 	startAt := wi.Workflow.StartAt
 	currentStep = startAt
 	emptyCondition := StepCondition{}
 	for {
 		util.AddStepToWorkflowObject(kubeconfig, currentStep, objName)
+		fmt.Printf("Start Running Step %s\n", currentStep)
 		wi.StepFunc[currentStep](handler)
 		nextSteps := wi.Workflow.Steps[currentStep].NextSteps
 		for _, step := range nextSteps {
@@ -30,7 +31,6 @@ func (wi *WorkflowInstance) ExecuteWorkflow(handler handler.Handler) {
 			value := condition.Value
 			operator := condition.Operator
 			flowDataResult := handler.FlowData.Get(key)
-			fmt.Println("successfully get value of ", key, flowDataResult)
 			switch operator {
 			case "=":
 				if value == flowDataResult {
@@ -39,13 +39,12 @@ func (wi *WorkflowInstance) ExecuteWorkflow(handler handler.Handler) {
 				}
 			}
 		}
-		fmt.Println("current step: ", currentStep)
-		fmt.Println("next step: ", nextStep)
 		util.SetWorkflowObjectStepToComplete(kubeconfig, objName, currentStep)
 		currentStep = nextStep
 		if len(wi.Workflow.Steps[currentStep].NextSteps) == 0 {
 			break
 		}
 	}
-	fmt.Println("Executing workflow complete")
+	fmt.Printf("Executing workflow complete%s\n", wi.Workflow.Name)
+
 }

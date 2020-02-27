@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"strings"
 	"sync"
+	"time"
 )
 
 type StepCondition struct {
@@ -45,6 +46,7 @@ type WorkflowInstance struct {
 type App struct {
 	WorkflowInstances []WorkflowInstance
 	ModelGVRMap       map[string]GVR
+	StartAt           time.Time
 }
 
 type Event struct {
@@ -130,48 +132,61 @@ func (app *App) RegisterWorkflow(definition func() Workflow, steps func() map[st
 func (app *App) Start() {
 	kubeconfig := util.GetKubeConfig()
 	namespace := "default"
+	app.StartAt = time.Now()
 	var gvrList []GVR
 	for _, element := range app.ModelGVRMap {
 		gvrList = append(gvrList, element)
 	}
-	fmt.Println("start watching")
 	ch := BulkWatchObject(kubeconfig, namespace, gvrList)
 	triggerWorkflow(kubeconfig, ch, app)
 }
 
 func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 	for event := range ch {
+		fmt.Println(event)
 		d := event.Object.(*unstructured.Unstructured)
-		objKind, found, err := unstructured.NestedString(d.Object, "kind")
-		if err != nil || !found {
-			fmt.Printf("kind not found for %s %s: error=%s\n", objKind, d.GetName(), err)
+		creationTimestamp, found, objKindERR := unstructured.NestedString(d.Object, "metadata", "creationTimestamp")
+		objKind, found, creationTimestampERR := unstructured.NestedString(d.Object, "kind")
+		if objKindERR != nil || !found {
+			fmt.Printf("kind not found for %s %s: error=%s\n", objKind, d.GetName(), objKindERR)
 			continue
 		}
-		e := Event{
-			Type:  string(event.Type),
-			Model: strings.ToLower(objKind),
+		if creationTimestampERR != nil || !found {
+			fmt.Printf("creationTimestamp not found for %s %s: error=%s\n", objKind, d.GetName(), creationTimestampERR)
+			continue
 		}
-		for _, wi := range app.WorkflowInstances {
-			if wi.Trigger(e) {
-				wfObjName := util.GenerateWorkflowObjName()
-				wi.WFObjName = wfObjName
-				wi.Kubeconfig = kubeconfig
-				var fd flowdata.FlowData
-				fd.Kubeconfig = kubeconfig
-				fd.WFObjName = wfObjName
-				var h handler.Handler
-				h.FlowData = fd
-				util.CreateEmptyWorkflowObject(kubeconfig, wfObjName)
-				wi.ExecuteWorkflow(h)
+		t, err := time.Parse(time.RFC3339, creationTimestamp)
+		if err != nil {
+			fmt.Printf("cannot parse timestamp %s: error=%s\n", creationTimestamp, err)
+			continue
+		}
+		if app.StartAt.Before(t) {
+			e := Event{
+				Type:  string(event.Type),
+				Model: strings.ToLower(objKind),
+			}
+			for _, wi := range app.WorkflowInstances {
+				if wi.Trigger(e) {
+					wfObjName := util.GenerateWorkflowObjName()
+					wi.WFObjName = wfObjName
+					wi.Kubeconfig = kubeconfig
+					var fd flowdata.FlowData
+					fd.Kubeconfig = kubeconfig
+					fd.WFObjName = wfObjName
+					var h handler.Handler
+					h.FlowData = fd
+					util.CreateEmptyWorkflowObject(kubeconfig, wfObjName)
+					wi.ExecuteWorkflow(h)
+				}
 			}
 		}
 	}
 }
 
 func BulkWatchObject(kubeconfig *string, namespace string, gvrList []GVR) <-chan watch.Event {
-
 	var chans []<-chan watch.Event
 	for _, gvr := range gvrList {
+		fmt.Printf("Start Watching Resource Group: %s, Version: %s, Resource: %s\n", gvr.Group, gvr.Version, gvr.Resource)
 		chans = append(chans, util.WatchObject(kubeconfig, namespace, gvr.Group, gvr.Version, gvr.Resource))
 	}
 	ch := mergeWatchChannels(chans)

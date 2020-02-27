@@ -47,7 +47,7 @@ func CreateObject(kubeconfig *string, namespace string, group string, version st
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(result)
+	fmt.Println("Created Workflow Object", result)
 }
 
 func GetObj(kubeconfig *string, namespace string, group string, version string, resource string, objName string) *unstructured.Unstructured {
