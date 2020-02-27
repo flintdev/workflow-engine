@@ -143,7 +143,9 @@ func (app *App) Start() {
 
 func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 	for event := range ch {
-		fmt.Println(event)
+		fmt.Println("Received New Event")
+		fmt.Println("Event Type:", event.Type)
+		fmt.Println("Event Object", event.Object)
 		d := event.Object.(*unstructured.Unstructured)
 		creationTimestamp, found, objKindERR := unstructured.NestedString(d.Object, "metadata", "creationTimestamp")
 		objKind, found, creationTimestampERR := unstructured.NestedString(d.Object, "kind")
