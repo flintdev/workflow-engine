@@ -3,14 +3,14 @@ package main
 import (
 	workflowFramework "github.com/flintdev/workflow-engine/engine"
 	"github.com/flintdev/workflow-engine/workflow-example/workflows"
-	workflow1 "github.com/flintdev/workflow-engine/workflow-example/workflows/workflow1"
-	workflow2 "github.com/flintdev/workflow-engine/workflow-example/workflows/workflow2"
+	"github.com/flintdev/workflow-engine/workflow-example/workflows/workflow1"
+	"github.com/flintdev/workflow-engine/workflow-example/workflows/workflow2"
 )
 
 func main() {
 	app := workflowFramework.CreateApp()
-	app.RegisterWorkflow(workflow1.Definition, workflow1.Steps, workflow1.Trigger)
-	app.RegisterWorkflow(workflow2.Definition, workflow2.Steps, workflow2.Trigger)
+	app.RegisterWorkflow(workflow1.Definition)
+	app.RegisterWorkflow(workflow2.Definition)
 	app.RegisterConfig(workflows.ParseConfig)
 	app.Start()
 }

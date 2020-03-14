@@ -9,55 +9,51 @@ import (
 func ParseDefinition() workflowFramework.Workflow {
 	var w workflowFramework.Workflow
 	definition := `{
-  "name": "test02",
-  "startAt": "step1",
-  "steps": {
-    "step1": {
-      "nextSteps": [
-        {
-          "name": "step2",
-          "condition": {
-            "key": "$.workflow2.step1.field1.field2",
-            "value": "test1",
-            "operator": "="
-          }
-        },
-        {
-          "name": "step3",
-          "condition": {
-            "key": "step1.result",
-            "value": "Failure",
-            "operator": "="
-          }
-        }
-      ]
-    },
-    "step2": {
-      "nextSteps": [
-        {
-          "name": "step4"
-        }
-      ]
-    },
-    "step3": {
-      "nextSteps": [
-        {
-          "name": "step4"
-        }
-      ]
-    },
-    "step4": {
-      "nextSteps": [
-        {
-          "name": "end"
-        }
-      ]
-    },
-    "end": {
-      "nextSteps": [
-      ]
-    }
-  }
+	"name": "workflow2",
+	"startAt": "step1",
+	"trigger": {
+		"model": "approval",
+		"eventType": "ADDED"
+	},
+	"steps": {
+		"step1": {
+			"nextSteps": [{
+					"name": "step2",
+					"condition": {
+						"key": "$.workflow2.step1.field1.field2",
+						"value": "test1",
+						"operator": "="
+					}
+				},
+				{
+					"name": "step3",
+					"condition": {
+						"key": "step1.result",
+						"value": "Failure",
+						"operator": "="
+					}
+				}
+			]
+		},
+		"step2": {
+			"nextSteps": [{
+				"name": "step4"
+			}]
+		},
+		"step3": {
+			"nextSteps": [{
+				"name": "step4"
+			}]
+		},
+		"step4": {
+			"nextSteps": [{
+				"name": "end"
+			}]
+		},
+		"end": {
+			"nextSteps": []
+		}
+	}
 }`
 	err := json.Unmarshal([]byte(definition), &w)
 

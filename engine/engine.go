@@ -29,16 +29,21 @@ type NextSteps struct {
 	NextSteps []NextStep `json:"nextSteps"`
 }
 
+type TriggerCondition struct {
+	Model     string `json:"model"`
+	EventType string `json:"eventType"`
+	When      string `json:"when"`
+}
+
 type Workflow struct {
 	Name    string               `json:"name"`
 	StartAt string               `json:"startAt"`
+	Trigger TriggerCondition     `json:"trigger"`
 	Steps   map[string]NextSteps `json:"steps"`
 }
 
 type WorkflowInstance struct {
 	Workflow   Workflow
-	StepFunc   map[string]func(handler handler.Handler)
-	Trigger    func(event Event) bool
 	Kubeconfig *string
 	WFObjName  string
 }
@@ -106,27 +111,23 @@ func (wi *WorkflowInstance) RegisterWorkflowDefinition(f func() Workflow) {
 	wi.Workflow = w
 }
 
-func (wi *WorkflowInstance) RegisterSteps(f func() map[string]func(handler handler.Handler)) {
-	stepFuncMap := f()
-	wi.StepFunc = stepFuncMap
-}
-
-func (wi *WorkflowInstance) RegisterTrigger(f func(event Event) bool) {
-	trigger := f
-	wi.Trigger = trigger
-}
-
 func (app *App) RegisterConfig(f func() Config) {
 	c := f()
 	app.ModelGVRMap = c.GVRMap
 }
 
-func (app *App) RegisterWorkflow(definition func() Workflow, steps func() map[string]func(handler handler.Handler), trigger func(event Event) bool) {
+func (app *App) RegisterWorkflow(definition func() Workflow) {
 	workflowInstance := CreateWorkflowInstance()
 	workflowInstance.RegisterWorkflowDefinition(definition)
-	workflowInstance.RegisterSteps(steps)
-	workflowInstance.RegisterTrigger(trigger)
 	app.WorkflowInstances = append(app.WorkflowInstances, workflowInstance)
+}
+
+func ParseTrigger(t TriggerCondition, e Event) bool {
+	if e.Model == t.Model && strings.ToLower(e.Type) == strings.ToLower(t.EventType) {
+		return true
+	} else {
+		return false
+	}
 }
 
 func (app *App) Start() {
@@ -143,7 +144,7 @@ func (app *App) Start() {
 
 func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 	for event := range ch {
-		fmt.Println("Received New Event")
+		fmt.Println("Received Event")
 		fmt.Println("Event Type:", event.Type)
 		fmt.Println("Event Object", event.Object)
 		d := event.Object.(*unstructured.Unstructured)
@@ -168,7 +169,7 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 				Model: strings.ToLower(objKind),
 			}
 			for _, wi := range app.WorkflowInstances {
-				if wi.Trigger(e) {
+				if ParseTrigger(wi.Workflow.Trigger, e) {
 					wfObjName := util.GenerateWorkflowObjName()
 					wi.WFObjName = wfObjName
 					wi.Kubeconfig = kubeconfig
