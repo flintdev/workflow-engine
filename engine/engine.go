@@ -90,22 +90,6 @@ func ParseDefinition(filePath string) Workflow {
 	return w
 }
 
-func ParseConfig(filePath string) Config {
-	var c Config
-	raw, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		fmt.Println(err.Error())
-		panic(fmt.Errorf("cannot Parse Json File %s", filePath))
-	}
-	_ = json.Unmarshal(raw, &c)
-	return c
-}
-
-func LoadConfig(filePath string) Config {
-	c := ParseConfig(filePath)
-	return c
-}
-
 func (wi *WorkflowInstance) RegisterWorkflowDefinition(f func() Workflow) {
 	w := f()
 	wi.Workflow = w
