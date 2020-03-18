@@ -56,27 +56,11 @@ func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path str
 	return m[path]
 }
 
-func GetWorkflowObjectCurrentStep(kubeconfig *string, objName string) string {
-	result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
-
-	currentStep, found, err := unstructured.NestedString(result.Object, "spec", "currentStep")
-	if err != nil || !found || currentStep == "" {
-		panic(fmt.Errorf("currentStep not found or error in spec: %v", err))
-	}
-	return currentStep
-}
-
 func SetWorkflowObjectCurrentStep(kubeconfig *string, objName string, currentStep string) {
-	fmt.Println(1)
-	fmt.Println(kubeconfig)
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	fmt.Println(2)
-
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(3)
-
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
 		panic(err)
@@ -84,8 +68,6 @@ func SetWorkflowObjectCurrentStep(kubeconfig *string, objName string, currentSte
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
-
-		fmt.Println(result)
 
 		if err := unstructured.SetNestedField(result.Object, currentStep, "spec", "currentStep"); err != nil {
 			panic(err)
@@ -284,22 +266,27 @@ func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName st
 
 }
 
-func CheckIfWorkflowIsTriggered(kubeconfig *string, modelObjName string) bool{
-	fmt.Println("checking if workflow is triggered by Model Event")
+func CheckIfWorkflowIsTriggered(kubeconfig *string, modelObjName string) (bool, error){
 	labelSelector := fmt.Sprintf("modelObjName=%s",  modelObjName)
-	list := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
-	fmt.Println(len(list.Items))
+	list, err := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
+	if err != nil {
+		return false, err
+	}
 	if len(list.Items) > 0 {
-		return true
+		return true, nil
 	} else {
-		return false
+		return false, nil
 	}
 }
 
-func GetPendingWorkflowList(kubeconfig *string, modelObjName string, currentStep string) *unstructured.UnstructuredList{
+func GetPendingWorkflowList(kubeconfig *string, modelObjName string, currentStep string) (*unstructured.UnstructuredList, error){
+	var errorReturn *unstructured.UnstructuredList
 	labelSelector := fmt.Sprintf("modelObjName=%s, currentStep=%s",  modelObjName, currentStep)
-	list := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
-	return list
+	list, err := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
+	if err != nil {
+		return errorReturn, err
+	}
+	return list, nil
 }
 
 func GenerateWorkflowObjName() string {

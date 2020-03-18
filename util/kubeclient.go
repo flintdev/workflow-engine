@@ -68,14 +68,15 @@ func GetObj(kubeconfig *string, namespace string, group string, version string, 
 	return result
 }
 
-func ListObj(kubeconfig *string, namespace string, group string, version string, resource string, labelSelector string) *unstructured.UnstructuredList {
+func ListObj(kubeconfig *string, namespace string, group string, version string, resource string, labelSelector string) (*unstructured.UnstructuredList, error) {
+	var errReturn *unstructured.UnstructuredList
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err)
+		return errReturn, err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return errReturn, err
 	}
 	listOptions := metav1.ListOptions{
 		LabelSelector: labelSelector,
@@ -83,10 +84,10 @@ func ListObj(kubeconfig *string, namespace string, group string, version string,
 	res := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
 	list, err := client.Resource(res).Namespace(namespace).List(listOptions)
 	if err != nil {
-		panic(err)
+		return errReturn, err
 	}
 
-	return list
+	return list, nil
 }
 
 func WatchObject(kubeconfig *string, namespace string, group string, version string, resource string) <-chan watch.Event {
