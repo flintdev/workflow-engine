@@ -4,3 +4,5 @@ metadata:
   name: expense01
 spec:
   user: gadai
+  switch: false
+  approval: false

@@ -36,8 +36,14 @@ spec:
               properties:
                 user:
                   type: string
+                switch:
+                  type: boolean
+                approval:
+                  type: boolean
               required:
                 - user
+                - switch
+                - approval
               type: object
             status:
               description: ExpenseStatus defines the observed state of Expense

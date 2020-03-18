@@ -68,7 +68,7 @@ func GetObj(kubeconfig *string, namespace string, group string, version string, 
 	return result
 }
 
-func ListObj(kubeconfig *string, namespace string, group string, version string, resource string) *unstructured.UnstructuredList {
+func ListObj(kubeconfig *string, namespace string, group string, version string, resource string, labelSelector string) *unstructured.UnstructuredList {
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		panic(err)
@@ -77,8 +77,11 @@ func ListObj(kubeconfig *string, namespace string, group string, version string,
 	if err != nil {
 		panic(err)
 	}
+	listOptions := metav1.ListOptions{
+		LabelSelector: labelSelector,
+	}
 	res := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
-	list, err := client.Resource(res).Namespace(namespace).List(metav1.ListOptions{})
+	list, err := client.Resource(res).Namespace(namespace).List(listOptions)
 	if err != nil {
 		panic(err)
 	}

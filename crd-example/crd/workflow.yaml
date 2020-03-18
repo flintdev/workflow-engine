@@ -36,6 +36,12 @@ spec:
               properties:
                 flowData:
                   type: string
+                currentStep:
+                  type: string
+                message:
+                  type: string
+                status:
+                  type: string
                 steps:
                   items:
                     properties:
@@ -57,6 +63,9 @@ spec:
               required:
                 - steps
                 - flowData
+                - currentStep
+                - message
+                - status
               type: object
             status:
               description: WorkFlowStatus defines the observed state of WorkFlow

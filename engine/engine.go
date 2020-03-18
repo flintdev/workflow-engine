@@ -1,14 +1,19 @@
 package engine
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/Knetic/govaluate"
 	"github.com/flintdev/workflow-engine/handler"
 	"github.com/flintdev/workflow-engine/handler/flowdata"
 	"github.com/flintdev/workflow-engine/util"
+	"github.com/google/uuid"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/util/jsonpath"
+	"k8s.io/kubectl/pkg/cmd/get"
 	"strings"
 	"sync"
 	"time"
@@ -25,27 +30,38 @@ type NextStep struct {
 	Condition StepCondition `json:"condition"`
 }
 
-type NextSteps struct {
-	NextSteps []NextStep `json:"nextSteps"`
-}
-
 type TriggerCondition struct {
 	Model     string `json:"model"`
 	EventType string `json:"eventType"`
 	When      string `json:"when"`
 }
 
-type Workflow struct {
-	Name    string               `json:"name"`
-	StartAt string               `json:"startAt"`
-	Trigger TriggerCondition     `json:"trigger"`
-	Steps   map[string]NextSteps `json:"steps"`
+type StepTriggerCondition struct {
+	StepName  string `json:"stepName"`
+	Model     string `json:"model"`
+	EventType string `json:"eventType"`
+	When      string `json:"when"`
 }
 
+type Step struct {
+	Type        string               `json:"type"`
+	StepTrigger StepTriggerCondition `json:"trigger"`
+	NextSteps   []NextStep           `json:"nextSteps"`
+}
+
+type Workflow struct {
+	Name    string           `json:"name"`
+	StartAt string           `json:"startAt"`
+	Trigger TriggerCondition `json:"trigger"`
+	Steps   map[string]Step  `json:"steps"`
+}
+
+// todo remove all non-instance related field
 type WorkflowInstance struct {
-	Workflow   Workflow
-	Kubeconfig *string
-	WFObjName  string
+	Workflow     Workflow
+	Kubeconfig   *string
+	ModelObjName string
+	StepTriggers []StepTriggerCondition
 }
 
 type App struct {
@@ -55,8 +71,9 @@ type App struct {
 }
 
 type Event struct {
-	Type  string
-	Model string
+	Type   string
+	Model  string
+	Object interface{}
 }
 
 type GVR struct {
@@ -107,11 +124,111 @@ func (app *App) RegisterWorkflow(definition func() Workflow) {
 }
 
 func ParseTrigger(t TriggerCondition, e Event) bool {
-	if e.Model == t.Model && strings.ToLower(e.Type) == strings.ToLower(t.EventType) {
+	fmt.Println(t.When)
+	whenExpresionResult := true
+	if t.When != "" {
+		whenExpresionResult = ParseTriggerCondition(t, e)
+	}
+
+	if e.Model == t.Model && strings.ToLower(e.Type) == strings.ToLower(t.EventType) && whenExpresionResult {
 		return true
 	} else {
 		return false
 	}
+}
+
+func ParseStepTrigger(st StepTriggerCondition, e Event) bool {
+	fmt.Println(st.When)
+	whenExpresionResult := true
+	if st.When != "" {
+		whenExpresionResult = ParseStepTriggerCondition(st, e)
+	}
+
+	if e.Model == st.Model && strings.ToLower(e.Type) == strings.ToLower(st.EventType) && whenExpresionResult {
+		return true
+	} else {
+		return false
+	}
+}
+
+func ParseTriggerCondition(t TriggerCondition, e Event) bool {
+	input := t.When
+	expression, _ := govaluate.NewEvaluableExpression(input)
+	var varTokenSlice []interface{}
+
+	tokens := expression.Tokens()
+	for i := 0; i < len(tokens); i += 3 {
+		varTokenSlice = append(varTokenSlice, tokens[i].Value)
+	}
+
+	parameters := make(map[string]interface{})
+
+	for _, token := range varTokenSlice {
+		tokenValue := token.(string)
+		fmt.Println(tokenValue)
+		parsedTokenValue := strings.Replace(tokenValue, ".", "_", -1)
+		fmt.Println(parsedTokenValue)
+		filedValue := getFiledValueByJsonPath(e, tokenValue)
+		fmt.Println(filedValue)
+		parameters[parsedTokenValue] = filedValue
+		input = strings.Replace(input, "'"+tokenValue+"'", parsedTokenValue, -1)
+	}
+	fmt.Println(input)
+	fmt.Println(parameters)
+	newExpression, _ := govaluate.NewEvaluableExpression(input)
+
+	output, err := newExpression.Evaluate(parameters)
+	fmt.Println(err)
+	result := output.(bool)
+	fmt.Println(result)
+	return result
+}
+
+func ParseStepTriggerCondition(st StepTriggerCondition, e Event) bool {
+	input := st.When
+	expression, _ := govaluate.NewEvaluableExpression(input)
+	var varTokenSlice []interface{}
+
+	tokens := expression.Tokens()
+	for i := 0; i < len(tokens); i += 3 {
+		varTokenSlice = append(varTokenSlice, tokens[i].Value)
+	}
+
+	parameters := make(map[string]interface{})
+
+	for _, token := range varTokenSlice {
+		tokenValue := token.(string)
+		fmt.Println(tokenValue)
+		parsedTokenValue := strings.Replace(tokenValue, ".", "_", -1)
+		fmt.Println(parsedTokenValue)
+		filedValue := getFiledValueByJsonPath(e, tokenValue)
+		fmt.Println(filedValue)
+		parameters[parsedTokenValue] = filedValue
+		input = strings.Replace(input, "'"+tokenValue+"'", parsedTokenValue, -1)
+	}
+	fmt.Println(input)
+	fmt.Println(parameters)
+	newExpression, _ := govaluate.NewEvaluableExpression(input)
+
+	output, err := newExpression.Evaluate(parameters)
+	fmt.Println(err)
+	result := output.(bool)
+	fmt.Println(result)
+	return result
+}
+
+func getFiledValueByJsonPath(e Event, fieldInput string) string {
+	j := jsonpath.New(uuid.New().String())
+	j.AllowMissingKeys(false)
+	field, err := get.RelaxedJSONPathExpression(fieldInput)
+	ee := j.Parse(field)
+	fmt.Println(ee)
+	buf := new(bytes.Buffer)
+	err = j.Execute(buf, e.Object)
+	fmt.Println(err)
+	out := buf.String()
+	fmt.Println(out)
+	return out
 }
 
 func (app *App) Start() {
@@ -134,6 +251,7 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 		d := event.Object.(*unstructured.Unstructured)
 		creationTimestamp, found, objKindERR := unstructured.NestedString(d.Object, "metadata", "creationTimestamp")
 		objKind, found, creationTimestampERR := unstructured.NestedString(d.Object, "kind")
+		objName, found, objNameERR := unstructured.NestedString(d.Object, "metadata", "name")
 		if objKindERR != nil || !found {
 			fmt.Printf("kind not found for %s %s: error=%s\n", objKind, d.GetName(), objKindERR)
 			continue
@@ -142,30 +260,70 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 			fmt.Printf("creationTimestamp not found for %s %s: error=%s\n", objKind, d.GetName(), creationTimestampERR)
 			continue
 		}
+		if objNameERR != nil || !found {
+			fmt.Printf("objNameERR not found for %s %s: error=%s\n", objKind, d.GetName(), creationTimestampERR)
+			continue
+		}
 		t, err := time.Parse(time.RFC3339, creationTimestamp)
 		if err != nil {
 			fmt.Printf("cannot parse timestamp %s: error=%s\n", creationTimestamp, err)
 			continue
 		}
-		if app.StartAt.Before(t) {
-			e := Event{
-				Type:  string(event.Type),
-				Model: strings.ToLower(objKind),
-			}
-			for _, wi := range app.WorkflowInstances {
+		if app.StartAt.After(t) && event.Type == "ADDED" {
+			continue
+		}
+		e := Event{
+			Type:   string(event.Type),
+			Model:  strings.ToLower(objKind),
+			Object: event.Object.(*unstructured.Unstructured).Object,
+		}
+		for index, wi := range app.WorkflowInstances {
+			fmt.Println(index)
+			fmt.Println(wi.StepTriggers)
+			fmt.Println("filter workflow")
+			if util.CheckIfWorkflowIsTriggered(kubeconfig, objName) {
+				fmt.Println("Printing Step trigger")
+				fmt.Println(wi.StepTriggers)
+				for _, stepTrigger := range wi.StepTriggers {
+					fmt.Println(stepTrigger)
+					if ParseStepTrigger(stepTrigger, e) {
+						fmt.Println("ready to start pending step")
+						currentStep := stepTrigger.StepName
+						objList := util.GetPendingWorkflowList(kubeconfig, objName, currentStep)
+						for _, obj := range objList.Items {
+							wi.Kubeconfig = kubeconfig
+							wfObjName := obj.GetName()
+							fmt.Println(wfObjName)
+							fmt.Println(currentStep)
+							var fd flowdata.FlowData
+							fd.Kubeconfig = kubeconfig
+							fd.WFObjName = wfObjName
+							var h handler.Handler
+							h.FlowData = fd
+							wi.ExecutePendingWorkflow(h, wfObjName, currentStep)
+						}
+					}
+				}
+			} else {
 				if ParseTrigger(wi.Workflow.Trigger, e) {
+					fmt.Println(kubeconfig)
+					wi.ModelObjName = objName
 					wfObjName := util.GenerateWorkflowObjName()
-					wi.WFObjName = wfObjName
 					wi.Kubeconfig = kubeconfig
 					var fd flowdata.FlowData
 					fd.Kubeconfig = kubeconfig
 					fd.WFObjName = wfObjName
 					var h handler.Handler
 					h.FlowData = fd
-					util.CreateEmptyWorkflowObject(kubeconfig, wfObjName)
-					wi.ExecuteWorkflow(h)
+					util.CreateEmptyWorkflowObject(kubeconfig, wfObjName, objName)
+					wi.ExecuteWorkflow(h, wfObjName)
+					fmt.Println("-------------")
+					fmt.Println(wi.StepTriggers)
+					app.WorkflowInstances[index].StepTriggers = wi.StepTriggers
+					break
 				}
 			}
+
 		}
 	}
 }

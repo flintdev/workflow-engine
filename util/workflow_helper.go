@@ -19,25 +19,117 @@ const wfVersion = "v1"
 const wfResource = "workflows"
 const wfNamespace = "default"
 
-func CreateEmptyWorkflowObject(kubeconfig *string, objName string) {
+func CreateEmptyWorkflowObject(kubeconfig *string, wfObjName string, modelObjName string) {
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "flint.flint.com/v1",
 			"kind":       "WorkFlow",
 			"metadata": map[string]interface{}{
-				"name": objName,
+				"name": wfObjName,
+				"labels": map[string]interface{}{
+					"modelObjName": modelObjName,
+					"currentStep": "init",
+				},
 			},
 			"spec": map[string]interface{}{
-				"steps":    []map[string]interface{}{},
-				"flowData": "{}",
+				"steps":       []map[string]interface{}{},
+				"flowData":    "{}",
+				"currentStep": "init",
+				"message": "Init Workflow",
+				"status": "init",
 			},
 		},
 	}
 	CreateObject(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, obj)
 }
 
-func AddStepToWorkflowObject(kubeconfig *string, stepName string, objName string) {
-	status := "running"
+func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path string) string {
+	path = ParseFlowDataKey(path)
+	result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+
+	flowData, found, err := unstructured.NestedString(result.Object, "spec", "flowData")
+	if err != nil || !found || flowData == "" {
+		panic(fmt.Errorf("flowData not found or error in spec: %v", err))
+	}
+
+	m := ConvertJsonStringToMap(flowData)
+	return m[path]
+}
+
+func GetWorkflowObjectCurrentStep(kubeconfig *string, objName string) string {
+	result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+
+	currentStep, found, err := unstructured.NestedString(result.Object, "spec", "currentStep")
+	if err != nil || !found || currentStep == "" {
+		panic(fmt.Errorf("currentStep not found or error in spec: %v", err))
+	}
+	return currentStep
+}
+
+func SetWorkflowObjectCurrentStep(kubeconfig *string, objName string, currentStep string) {
+	fmt.Println(1)
+	fmt.Println(kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	fmt.Println(2)
+
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(3)
+
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+
+		fmt.Println(result)
+
+		if err := unstructured.SetNestedField(result.Object, currentStep, "spec", "currentStep"); err != nil {
+			panic(err)
+		}
+
+		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
+
+		_, updateErr := client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return updateErr
+	})
+	if retryErr != nil {
+		panic(fmt.Errorf("update failed: %v", retryErr))
+	}
+}
+
+func SetWorkflowObjectCurrentStepLabel(kubeconfig *string, objName string, currentStep string) {
+
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		panic(err)
+	}
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err := unstructured.SetNestedField(result.Object, currentStep, "metadata", "labels", "currentStep"); err != nil {
+			panic(err)
+		}
+
+		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
+
+		_, updateErr := client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return updateErr
+	})
+	if retryErr != nil {
+		panic(fmt.Errorf("update failed: %v", retryErr))
+	}
+}
+
+func SetStepToWorkflowObject(kubeconfig *string, stepName string, objName string) {
+	status := "Running"
 	currentTime := time.Now().UTC().String()
 
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
@@ -115,21 +207,20 @@ func SetWorkflowObjectFlowData(kubeconfig *string, objName string, path string, 
 	}
 }
 
-func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path string) string {
-	path = ParseFlowDataKey(path)
-	result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
-
-	flowData, found, err := unstructured.NestedString(result.Object, "spec", "flowData")
-	if err != nil || !found || flowData == "" {
-		panic(fmt.Errorf("flowData not found or error in spec: %v", err))
-	}
-
-	m := ConvertJsonStringToMap(flowData)
-	return m[path]
-}
-
 func SetWorkflowObjectStepToComplete(kubeconfig *string, objName string, stepName string) {
 	setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Complete")
+}
+
+func SetWorkflowObjectStepToRunning(kubeconfig *string, objName string, stepName string) {
+	setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Running")
+}
+
+func SetWorkflowObjectStepToPending(kubeconfig *string, objName string, stepName string) {
+	setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Pending")
+}
+
+func SetWorkflowObjectStepToFailure(kubeconfig *string, objName string, stepName string) {
+	setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Failure")
 }
 
 func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName string, status string) {
@@ -193,6 +284,24 @@ func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName st
 
 }
 
+func CheckIfWorkflowIsTriggered(kubeconfig *string, modelObjName string) bool{
+	fmt.Println("checking if workflow is triggered by Model Event")
+	labelSelector := fmt.Sprintf("modelObjName=%s",  modelObjName)
+	list := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
+	fmt.Println(len(list.Items))
+	if len(list.Items) > 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
+func GetPendingWorkflowList(kubeconfig *string, modelObjName string, currentStep string) *unstructured.UnstructuredList{
+	labelSelector := fmt.Sprintf("modelObjName=%s, currentStep=%s",  modelObjName, currentStep)
+	list := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
+	return list
+}
+
 func GenerateWorkflowObjName() string {
 	uuidWithHyphen := uuid.New()
 	u := strings.Replace(uuidWithHyphen.String(), "-", "", -1)
@@ -205,6 +314,5 @@ func ParseFlowDataKey(path string) string {
 	if s[0] == "$" {
 		s = s[1:]
 	}
-
 	return strings.Join(s[:], ".")
 }

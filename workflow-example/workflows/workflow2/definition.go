@@ -17,6 +17,7 @@ func ParseDefinition() workflowFramework.Workflow {
 	},
 	"steps": {
 		"step1": {
+			"type": "automation",
 			"nextSteps": [{
 					"name": "step2",
 					"condition": {
@@ -36,16 +37,19 @@ func ParseDefinition() workflowFramework.Workflow {
 			]
 		},
 		"step2": {
+			"type": "automation",
 			"nextSteps": [{
 				"name": "step4"
 			}]
 		},
 		"step3": {
+			"type": "automation",
 			"nextSteps": [{
 				"name": "step4"
 			}]
 		},
 		"step4": {
+			"type": "automation",
 			"nextSteps": [{
 				"name": "end"
 			}]
