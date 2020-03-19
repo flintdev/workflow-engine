@@ -2,7 +2,6 @@ package util
 
 import (
 	"flag"
-	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,42 +29,43 @@ func GetKubeConfig() *string {
 	return kubeconfig
 }
 
-func CreateObject(kubeconfig *string, namespace string, group string, version string, resource string, obj *unstructured.Unstructured) {
+func CreateObject(kubeconfig *string, namespace string, group string, version string, resource string, obj *unstructured.Unstructured) error {
 
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	res := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
 
-	result, err := client.Resource(res).Namespace(namespace).Create(obj, metav1.CreateOptions{})
+	_, err = client.Resource(res).Namespace(namespace).Create(obj, metav1.CreateOptions{})
 	if err != nil {
-		panic(err)
+		return err
 	}
-	fmt.Println("Created Workflow Object", result)
+	return nil
 }
 
-func GetObj(kubeconfig *string, namespace string, group string, version string, resource string, objName string) *unstructured.Unstructured {
+func GetObj(kubeconfig *string, namespace string, group string, version string, resource string, objName string) (*unstructured.Unstructured, error) {
+	var u *unstructured.Unstructured
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err)
+		return u, err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return u, err
 	}
 	res := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
-	result, getErr := client.Resource(res).Namespace(namespace).Get(objName, metav1.GetOptions{})
-	if getErr != nil {
-		panic(fmt.Errorf("failed to get latest version of Expense: %v", getErr))
+	result, err := client.Resource(res).Namespace(namespace).Get(objName, metav1.GetOptions{})
+	if err != nil {
+		return u, err
 	}
 
-	return result
+	return result, nil
 }
 
 func ListObj(kubeconfig *string, namespace string, group string, version string, resource string, labelSelector string) (*unstructured.UnstructuredList, error) {

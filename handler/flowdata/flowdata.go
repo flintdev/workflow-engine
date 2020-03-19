@@ -7,15 +7,22 @@ type FlowData struct {
 	WFObjName  string
 }
 
-func (fd *FlowData) Set(path string, value string) {
+func (fd *FlowData) Set(path string, value string) error {
 	kubeconfig := fd.Kubeconfig
 	objName := fd.WFObjName
-	util.SetWorkflowObjectFlowData(kubeconfig, objName, path, value)
+	err := util.SetWorkflowObjectFlowData(kubeconfig, objName, path, value)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (fd *FlowData) Get(path string) string {
+func (fd *FlowData) Get(path string) (string, error) {
 	kubeconfig := fd.Kubeconfig
 	objName := fd.WFObjName
-	r := util.GetWorkflowObjectFlowDataValue(kubeconfig, objName, path)
-	return r
+	r, err := util.GetWorkflowObjectFlowDataValue(kubeconfig, objName, path)
+	if err != nil {
+		return "", err
+	}
+	return r, err
 }

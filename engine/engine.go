@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/util/jsonpath"
 	"k8s.io/kubectl/pkg/cmd/get"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -165,7 +166,7 @@ func ParseTriggerCondition(input string, e Event) (bool, error) {
 			return false, err
 		}
 		parameters[parsedTokenValue] = filedValue
-		input = strings.Replace(input, "'" + tokenValue + "'", parsedTokenValue, -1)
+		input = strings.Replace(input, "'"+tokenValue+"'", parsedTokenValue, -1)
 	}
 	newExpression, err := govaluate.NewEvaluableExpression(input)
 	if err != nil {
@@ -225,12 +226,12 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 		objName := d.GetName()
 		creationTimestamp, found, err := unstructured.NestedString(d.Object, "metadata", "creationTimestamp")
 		if err != nil || !found {
-			fmt.Printf("creationTimestamp not found for %s %s: error=%s\n", objKind, d.GetName(), err)
+			log.Printf("creationTimestamp not found for %s %s: error=%s\n", objKind, d.GetName(), err)
 			continue
 		}
 		t, err := time.Parse(time.RFC3339, creationTimestamp)
 		if err != nil {
-			fmt.Printf("cannot parse timestamp %s: error=%s\n", creationTimestamp, err)
+			log.Printf("cannot parse timestamp %s: error=%s\n", creationTimestamp, err)
 			continue
 		}
 		if app.StartAt.After(t) && event.Type == "ADDED" {
@@ -244,21 +245,21 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 		for index, wi := range app.WorkflowInstances {
 			isWorkflowTriggered, err := util.CheckIfWorkflowIsTriggered(kubeconfig, objName)
 			if err != nil {
-				fmt.Print(err)
+				log.Print(err)
 				continue
 			}
 			if isWorkflowTriggered {
 				for _, stepTrigger := range wi.StepTriggers {
 					result, err := ParseStepTrigger(stepTrigger, e)
 					if err != nil {
-						fmt.Println(err)
+						log.Println(err)
 						continue
 					}
 					if result {
 						currentStep := stepTrigger.StepName
 						objList, err := util.GetPendingWorkflowList(kubeconfig, objName, currentStep)
 						if err != nil {
-							fmt.Print(err)
+							log.Print(err)
 							continue
 						}
 						for _, obj := range objList.Items {
@@ -275,7 +276,7 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 			} else {
 				result, err := ParseTrigger(wi.Workflow.Trigger, e)
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 					continue
 				}
 				if result {
@@ -285,10 +286,13 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 					fd.WFObjName = wfObjName
 					var h handler.Handler
 					h.FlowData = fd
-					util.CreateEmptyWorkflowObject(kubeconfig, wfObjName, objName)
+					err := util.CreateEmptyWorkflowObject(kubeconfig, wfObjName, objName)
+					if err != nil {
+						log.Println(err)
+						break
+					}
 					wi.ExecuteWorkflow(kubeconfig, h, wfObjName)
 					app.WorkflowInstances[index].StepTriggers = wi.StepTriggers
-					break
 				}
 			}
 

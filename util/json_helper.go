@@ -2,25 +2,24 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
-func ConvertMapToJsonString(m map[string]string) string {
+func ConvertMapToJsonString(m map[string]string) (string, error) {
 	empData, err := json.Marshal(m)
 	if err != nil {
-		fmt.Println(err.Error())
+		return "", err
 	}
 	jsonStr := string(empData)
-	return jsonStr
+	return jsonStr, nil
 }
 
-func ConvertJsonStringToMap(s string) map[string]string {
+func ConvertJsonStringToMap(s string) (map[string]string, error) {
 	m := make(map[string]string)
 
 	err := json.Unmarshal([]byte(s), &m)
 
 	if err != nil {
-		fmt.Println(err.Error())
+		return m, nil
 	}
-	return m
+	return m, nil
 }

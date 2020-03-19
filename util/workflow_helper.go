@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,7 +20,7 @@ const wfVersion = "v1"
 const wfResource = "workflows"
 const wfNamespace = "default"
 
-func CreateEmptyWorkflowObject(kubeconfig *string, wfObjName string, modelObjName string) {
+func CreateEmptyWorkflowObject(kubeconfig *string, wfObjName string, modelObjName string) error {
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "flint.flint.com/v1",
@@ -28,106 +29,131 @@ func CreateEmptyWorkflowObject(kubeconfig *string, wfObjName string, modelObjNam
 				"name": wfObjName,
 				"labels": map[string]interface{}{
 					"modelObjName": modelObjName,
-					"currentStep": "init",
+					"currentStep":  "init",
 				},
 			},
 			"spec": map[string]interface{}{
 				"steps":       []map[string]interface{}{},
 				"flowData":    "{}",
 				"currentStep": "init",
-				"message": "Init Workflow",
-				"status": "init",
+				"message":     "Init Workflow",
+				"status":      "init",
 			},
 		},
 	}
-	CreateObject(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, obj)
+	err := CreateObject(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, obj)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path string) string {
+func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path string) (string, error) {
 	path = ParseFlowDataKey(path)
-	result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+	result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+
+	if err != nil {
+		return "", err
+	}
 
 	flowData, found, err := unstructured.NestedString(result.Object, "spec", "flowData")
 	if err != nil || !found || flowData == "" {
-		panic(fmt.Errorf("flowData not found or error in spec: %v", err))
+		message := fmt.Sprintf("flowData not found or error in spec: %s", err)
+		return "", errors.New(message)
 	}
 
-	m := ConvertJsonStringToMap(flowData)
-	return m[path]
+	m, err := ConvertJsonStringToMap(flowData)
+	if err != nil {
+		return "", err
+	}
+	return m[path], nil
 }
 
-func SetWorkflowObjectCurrentStep(kubeconfig *string, objName string, currentStep string) {
+func SetWorkflowObjectCurrentStep(kubeconfig *string, objName string, currentStep string) error {
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+
+		if err != nil {
+			return err
+		}
 
 		if err := unstructured.SetNestedField(result.Object, currentStep, "spec", "currentStep"); err != nil {
-			panic(err)
+			return err
 		}
 
 		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
 
-		_, updateErr := client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
-		return updateErr
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
 	})
 	if retryErr != nil {
-		panic(fmt.Errorf("update failed: %v", retryErr))
+		return retryErr
 	}
+	return nil
 }
 
-func SetWorkflowObjectCurrentStepLabel(kubeconfig *string, objName string, currentStep string) {
+func SetWorkflowObjectCurrentStepLabel(kubeconfig *string, objName string, currentStep string) error {
 
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err != nil {
+			return err
+		}
 		if err := unstructured.SetNestedField(result.Object, currentStep, "metadata", "labels", "currentStep"); err != nil {
-			panic(err)
+			return err
 		}
 
 		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
 
-		_, updateErr := client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
-		return updateErr
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
 	})
 	if retryErr != nil {
-		panic(fmt.Errorf("update failed: %v", retryErr))
+		return retryErr
 	}
+	return nil
 }
 
-func SetStepToWorkflowObject(kubeconfig *string, stepName string, objName string) {
+func SetWorkflowObjectStep(kubeconfig *string, objName string, stepName string) error {
 	status := "Running"
 	currentTime := time.Now().UTC().String()
 
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err != nil {
+			return err
+		}
 		steps, found, err := unstructured.NestedSlice(result.Object, "spec", "steps")
 		if err != nil || !found || steps == nil {
-			panic(fmt.Errorf("steps not found or error in spec: %v", err))
+			message := fmt.Sprintf("steps not found or error in spec: %s", err)
+			return errors.New(message)
 		}
 		tempStep := map[string]interface{}{
 			"name":    stepName,
@@ -138,90 +164,176 @@ func SetStepToWorkflowObject(kubeconfig *string, stepName string, objName string
 		newSteps := append(steps, tempStep)
 
 		if err := unstructured.SetNestedField(result.Object, newSteps, "spec", "steps"); err != nil {
-			panic(err)
+			return err
+		}
+
+		if err := unstructured.SetNestedField(result.Object, stepName, "spec", "currentStep"); err != nil {
+			return err
+		}
+
+		if err := unstructured.SetNestedField(result.Object, stepName, "metadata", "labels", "currentStep"); err != nil {
+			return err
 		}
 
 		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
 
-		_, updateErr := client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
-		return updateErr
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
 	})
 	if retryErr != nil {
-		panic(fmt.Errorf("update failed: %v", retryErr))
+		return retryErr
 	}
+	return nil
 }
 
-func SetWorkflowObjectFlowData(kubeconfig *string, objName string, path string, value string) {
+func SetStepToWorkflowObject(kubeconfig *string, stepName string, objName string) error {
+	status := "Running"
+	currentTime := time.Now().UTC().String()
+
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		return err
+	}
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err != nil {
+			return err
+		}
+		steps, found, err := unstructured.NestedSlice(result.Object, "spec", "steps")
+		if err != nil || !found || steps == nil {
+			message := fmt.Sprintf("steps not found or error in spec: %s", err)
+			return errors.New(message)
+		}
+		tempStep := map[string]interface{}{
+			"name":    stepName,
+			"startAt": currentTime,
+			"endAt":   "",
+			"status":  status,
+		}
+		newSteps := append(steps, tempStep)
+
+		if err := unstructured.SetNestedField(result.Object, newSteps, "spec", "steps"); err != nil {
+			return err
+		}
+
+		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
+
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
+	})
+	if retryErr != nil {
+		return retryErr
+	}
+	return nil
+}
+
+func SetWorkflowObjectFlowData(kubeconfig *string, objName string, path string, value string) error {
 	path = ParseFlowDataKey(path)
 
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err != nil {
+			return err
+		}
 
 		flowData, found, err := unstructured.NestedString(result.Object, "spec", "flowData")
 		if err != nil || !found || flowData == "" {
-			panic(fmt.Errorf("flowData not found or error in spec: %v", err))
+			message := fmt.Sprintf("flowData not found or error in spec: %s", err)
+			return errors.New(message)
 		}
 
-		m := ConvertJsonStringToMap(flowData)
+		m, err := ConvertJsonStringToMap(flowData)
+		if err != nil {
+			return err
+		}
 		m[path] = value
-		jsonString := ConvertMapToJsonString(m)
+		jsonString, err := ConvertMapToJsonString(m)
+		if err != nil {
+			return err
+		}
 
 		if err := unstructured.SetNestedField(result.Object, jsonString, "spec", "flowData"); err != nil {
-			panic(err)
+			return err
 		}
 
 		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
 
-		_, updateErr := client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
-		return updateErr
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
 	})
 	if retryErr != nil {
-		panic(fmt.Errorf("update failed: %v", retryErr))
+		return retryErr
 	}
+	return nil
 }
 
-func SetWorkflowObjectStepToComplete(kubeconfig *string, objName string, stepName string) {
-	setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Complete")
+func SetWorkflowObjectStepToComplete(kubeconfig *string, objName string, stepName string) error {
+	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Complete")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func SetWorkflowObjectStepToRunning(kubeconfig *string, objName string, stepName string) {
-	setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Running")
+func SetWorkflowObjectStepToRunning(kubeconfig *string, objName string, stepName string) error {
+	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Running")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func SetWorkflowObjectStepToPending(kubeconfig *string, objName string, stepName string) {
-	setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Pending")
+func SetWorkflowObjectStepToPending(kubeconfig *string, objName string, stepName string) error {
+	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Pending")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func SetWorkflowObjectStepToFailure(kubeconfig *string, objName string, stepName string) {
-	setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Failure")
+func SetWorkflowObjectStepToFailure(kubeconfig *string, objName string, stepName string) error {
+	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Failure")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName string, status string) {
+func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName string, status string) error {
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	var index int
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		result := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err != nil {
+			return err
+		}
 		steps, found, err := unstructured.NestedSlice(result.Object, "spec", "steps")
 		if err != nil || !found || steps == nil {
-			panic(fmt.Errorf("steps not found or error in spec: %v", err))
+			message := fmt.Sprintf("steps not found or error in spec: %s", err)
+			return errors.New(message)
 		}
 		for i, step := range steps {
 			getIndex := false
@@ -241,33 +353,34 @@ func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName st
 			}
 		}
 		if err := unstructured.SetNestedField(steps[index].(map[string]interface{}), status, "status"); err != nil {
-			panic(err)
+			return err
 		}
 
 		if status == "Complete" {
 			currentTime := time.Now().UTC().String()
 			if err := unstructured.SetNestedField(steps[index].(map[string]interface{}), currentTime, "endAt"); err != nil {
-				panic(err)
+				return err
 			}
 		}
 
 		if err := unstructured.SetNestedField(result.Object, steps, "spec", "steps"); err != nil {
-			panic(err)
+			return err
 		}
 
 		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
 
-		_, updateErr := client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
-		return updateErr
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
 	})
 	if retryErr != nil {
-		panic(fmt.Errorf("update failed: %v", retryErr))
+		return retryErr
 	}
+	return nil
 
 }
 
-func CheckIfWorkflowIsTriggered(kubeconfig *string, modelObjName string) (bool, error){
-	labelSelector := fmt.Sprintf("modelObjName=%s",  modelObjName)
+func CheckIfWorkflowIsTriggered(kubeconfig *string, modelObjName string) (bool, error) {
+	labelSelector := fmt.Sprintf("modelObjName=%s", modelObjName)
 	list, err := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
 	if err != nil {
 		return false, err
@@ -279,9 +392,9 @@ func CheckIfWorkflowIsTriggered(kubeconfig *string, modelObjName string) (bool, 
 	}
 }
 
-func GetPendingWorkflowList(kubeconfig *string, modelObjName string, currentStep string) (*unstructured.UnstructuredList, error){
+func GetPendingWorkflowList(kubeconfig *string, modelObjName string, currentStep string) (*unstructured.UnstructuredList, error) {
 	var errorReturn *unstructured.UnstructuredList
-	labelSelector := fmt.Sprintf("modelObjName=%s, currentStep=%s",  modelObjName, currentStep)
+	labelSelector := fmt.Sprintf("modelObjName=%s, currentStep=%s", modelObjName, currentStep)
 	list, err := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
 	if err != nil {
 		return errorReturn, err
