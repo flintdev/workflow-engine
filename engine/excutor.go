@@ -179,13 +179,6 @@ func (wi *WorkflowInstance) ExecutePendingWorkflow(kubeconfig *string, handler h
 	skipFirst := false
 	for {
 		fmt.Printf("Start Running Step %s\n", currentStep)
-		err := util.SetWorkflowObjectStepToRunning(kubeconfig, wfObjName, currentStep)
-		if err != nil {
-			err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
-			if err != nil {
-				return err
-			}
-		}
 		if skipFirst {
 			err := util.SetWorkflowObjectStep(kubeconfig, wfObjName, currentStep)
 			if err != nil {
@@ -203,6 +196,13 @@ func (wi *WorkflowInstance) ExecutePendingWorkflow(kubeconfig *string, handler h
 					}
 				}
 				break
+			}
+		}
+		err := util.SetWorkflowObjectStepToRunning(kubeconfig, wfObjName, currentStep)
+		if err != nil {
+			err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+			if err != nil {
+				return err
 			}
 		}
 		skipFirst = true

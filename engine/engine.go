@@ -243,67 +243,66 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 			Object: event.Object.(*unstructured.Unstructured).Object,
 		}
 		for index, wi := range app.WorkflowInstances {
-			isWorkflowTriggered, err := util.CheckIfWorkflowIsTriggered(kubeconfig, objName)
+			go triggerWorkflowInstance(kubeconfig, app, objName, wi, e, index)
+		}
+	}
+}
+
+func triggerWorkflowInstance(kubeconfig *string, app *App, objName string, wi WorkflowInstance, e Event, index int) {
+	isWorkflowTriggered, err := util.CheckIfWorkflowIsTriggered(kubeconfig, objName)
+	if err != nil {
+		log.Print(err)
+	}
+	if isWorkflowTriggered {
+		for _, stepTrigger := range wi.StepTriggers {
+			result, err := ParseStepTrigger(stepTrigger, e)
 			if err != nil {
-				log.Print(err)
+				log.Println(err)
 				continue
 			}
-			if isWorkflowTriggered {
-				for _, stepTrigger := range wi.StepTriggers {
-					result, err := ParseStepTrigger(stepTrigger, e)
-					if err != nil {
-						log.Println(err)
-						continue
-					}
-					if result {
-						currentStep := stepTrigger.StepName
-						objList, err := util.GetPendingWorkflowList(kubeconfig, objName, currentStep)
-						if err != nil {
-							log.Print(err)
-							continue
-						}
-						for _, obj := range objList.Items {
-							wfObjName := obj.GetName()
-							var fd flowdata.FlowData
-							fd.Kubeconfig = kubeconfig
-							fd.WFObjName = wfObjName
-							var h handler.Handler
-							h.FlowData = fd
-							err := wi.ExecutePendingWorkflow(kubeconfig, h, wfObjName, currentStep)
-							if err != nil {
-								log.Println(err)
-								continue
-							}
-						}
-					}
-				}
-			} else {
-				result, err := ParseTrigger(wi.Workflow.Trigger, e)
+			if result {
+				currentStep := stepTrigger.StepName
+				objList, err := util.GetPendingWorkflowList(kubeconfig, objName, currentStep)
 				if err != nil {
-					log.Println(err)
+					log.Print(err)
 					continue
 				}
-				if result {
-					wfObjName := util.GenerateWorkflowObjName()
+				for _, obj := range objList.Items {
+					wfObjName := obj.GetName()
 					var fd flowdata.FlowData
 					fd.Kubeconfig = kubeconfig
 					fd.WFObjName = wfObjName
 					var h handler.Handler
 					h.FlowData = fd
-					err := util.CreateEmptyWorkflowObject(kubeconfig, wfObjName, objName)
+					err := wi.ExecutePendingWorkflow(kubeconfig, h, wfObjName, currentStep)
 					if err != nil {
 						log.Println(err)
 						continue
 					}
-					err = wi.ExecuteWorkflow(kubeconfig, h, wfObjName)
-					if err != nil {
-						log.Println(err)
-						continue
-					}
-					app.WorkflowInstances[index].StepTriggers = wi.StepTriggers
 				}
 			}
-
+		}
+	} else {
+		result, err := ParseTrigger(wi.Workflow.Trigger, e)
+		if err != nil {
+			log.Println(err)
+		}
+		if result {
+			wfObjName := util.GenerateWorkflowObjName()
+			var fd flowdata.FlowData
+			fd.Kubeconfig = kubeconfig
+			fd.WFObjName = wfObjName
+			var h handler.Handler
+			h.FlowData = fd
+			err := util.CreateEmptyWorkflowObject(kubeconfig, wfObjName, objName)
+			if err != nil {
+				log.Println(err)
+			}
+			err = wi.ExecuteWorkflow(kubeconfig, h, wfObjName)
+			if err != nil {
+				log.Println(err)
+			}
+			app.WorkflowInstances[index].StepTriggers = wi.StepTriggers
 		}
 	}
 }
