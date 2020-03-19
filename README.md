@@ -5,20 +5,10 @@
 ```
 |--workflow-example
 |  |--main.go
+|  |--config.go
 |  |--go.mod
 |  |--workflows
 |    |--workflow1
-|    |--config.go
-|      |--steps
-         |--step1
-|          |--step1.go
-|        |--step2
-|          |--step2.go
-|        |--step3
-|          |--step3.go
-|          |--step4
-|        |--step4.go
-|      |--trigger.go
 |      |--definition.go
 |      |--init.go
 ```
@@ -32,42 +22,104 @@ package main
 
 import (
 	workflowFramework "github.com/flintdev/workflow-engine/engine"
-	"workflow-example/workflows"
-	workflow1 "workflow-example/workflows/workflow1"
+	"github.com/flintdev/workflow-engine/workflow-example/workflows"
+	"workflow-example/workflows/workflow1"
+	"workflow-example/workflows/workflow2"
 )
 
 func main() {
 	app := workflowFramework.CreateApp()
-	app.RegisterWorkflow(workflow1.Definition, workflow1.Steps, workflow1.Trigger)
+	app.RegisterWorkflow(workflow1.Definition)
+	app.RegisterWorkflow(workflow2.Definition)
 	app.RegisterConfig(workflows.ParseConfig)
 	app.Start()
 }
 
-
 ```
 
-#### step1.go
+#### definition.go
 
 ```go
-package step1
+package workflow1
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/flintdev/workflow-engine/handler"
+	workflowFramework "github.com/flintdev/workflow-engine/engine"
 )
 
-func Execute(handler handler.Handler) {
-	fmt.Println("running step1")
-	path := "step1.field1.field2"
-	value := "test1"
-	handler.FlowData.Set(path, value)
+func ParseDefinition() workflowFramework.Workflow {
+	var w workflowFramework.Workflow
+	definition := `{
+	"name": "workflow1",
+	"startAt": "step1",
+	"trigger": {
+		"model": "expense",
+		"eventType": "MODIFIED",
+		"when": "'spec.switch' == 'true'"
+	},
+	"steps": {
+		"step1": {
+			"type": "automation",
+			"nextSteps": [{
+					"name": "step2",
+					"condition": {
+						"key": "$.workflow1.step1.field1.field2",
+						"value": "test1",
+						"operator": "="
+					}
+				},
+				{
+					"name": "step3",
+					"condition": {
+						"key": "step1.result",
+						"value": "Failure",
+						"operator": "="
+					}
+				}
+			]
+		},
+		"step2": {
+			"type": "manual",
+			"trigger": {
+				"model": "expense",
+				"eventType": "MODIFIED",
+				"when": "'spec.approval' == 'true'"
+			},
+			"nextSteps": [{
+				"name": "step4"
+			}]
+		},
+		"step3": {
+			"type": "automation",
+			"nextSteps": [{
+				"name": "step4"
+			}]
+		},
+		"step4": {
+			"type": "automation",
+			"nextSteps": [{
+				"name": "end"
+			}]
+		},
+		"end": {
+			"nextSteps": []
+		}
+	}
+}`
+	err := json.Unmarshal([]byte(definition), &w)
+
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	return w
+
 }
 
 
-
 ```
 
-#### trigger.go
+#### init.go
 
 ```go
 package workflow1
@@ -76,8 +128,10 @@ import (
 	workflowFramework "github.com/flintdev/workflow-engine/engine"
 )
 
-func TriggerCondition(event workflowFramework.Event) bool {
-	return event.Model == "expense" && event.Type == "ADDED"
+func Definition() workflowFramework.Workflow {
+	w := ParseDefinition()
+	return w
 }
+
 
 ```
