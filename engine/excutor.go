@@ -16,9 +16,14 @@ type ExecutorResponse struct {
 }
 
 func executeStep(kubeconfig *string, wi *WorkflowInstance, handler handler.Handler, wfObjName string, currentStep string) (bool, string, error) {
+	wfMessage := fmt.Sprintf("running step %s", currentStep)
+	err := util.SetWorkflowObjectMessage(kubeconfig, wfObjName, wfMessage)
+	if err != nil {
+		return false, "", err
+	}
 	emptyCondition := StepCondition{}
 	nextStep := ""
-	port := get_python_executor_port()
+	port := getPythonExecutorPort()
 	url := fmt.Sprintf("http://127.0.0.1:%s/execute?workflow=%s&step=%s&obj_name=%s", port, wi.Workflow.Name, currentStep, wfObjName)
 	fmt.Printf("Sent GET request to %s\n", url)
 	response, err := http.Get(url)
@@ -68,82 +73,161 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, handler handler.Handl
 				return false, nextStep, nil
 			}
 		} else {
-			return false, "", errors.New(r.Message)
+			err := util.SetWorkflowObjectFailedStep(kubeconfig, wfObjName, currentStep, r.Message)
+			if err != nil {
+				return false, "", err
+			}
+			message := fmt.Sprintf("Failed on step %s. Reason: %s", currentStep, r.Message)
+			return false, "", errors.New(message)
 		}
 	}
 }
 
-func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, handler handler.Handler, wfObjName string) {
+func completeWorkflow (kubeconfig *string, wfObjName string, wi *WorkflowInstance) error {
+	err := util.SetWorkflowObjectToComplete(kubeconfig, wfObjName)
+	if err !=nil {
+		return err
+	}
+	wfMessage := fmt.Sprintf("Workflow %s Complete\n", wi.Workflow.Name)
+	fmt.Printf(wfMessage)
+	err = util.SetWorkflowObjectMessage(kubeconfig, wfObjName, wfMessage)
+	if err != nil {
+		return err
+	}
+	err = util.SetWorkflowObjectCurrentStep(kubeconfig, wfObjName, "end")
+	if err != nil {
+		return err
+	}
+	err = util.SetWorkflowObjectCurrentStepLabel(kubeconfig, wfObjName, "end")
+	return nil
+}
+
+func handleManualStep (kubeconfig *string, wfObjName string, wi *WorkflowInstance, currentStep string) error{
+	err := util.SetWorkflowObjectStepToPending(kubeconfig, wfObjName, currentStep)
+	if err != nil {
+		return err
+	}
+	stepTrigger := wi.Workflow.Steps[currentStep].StepTrigger
+	stepTrigger.StepName = currentStep
+	wi.StepTriggers = append(wi.StepTriggers, stepTrigger)
+	wfMessage := fmt.Sprintf("Workflow is pending on manual step %s\n", currentStep)
+	fmt.Printf(wfMessage)
+	err = util.SetWorkflowObjectMessage(kubeconfig, wfObjName, wfMessage)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, handler handler.Handler, wfObjName string) error {
 	currentStep := ""
 	fmt.Printf("Start Executing workflow %s\n", wi.Workflow.Name)
 	startAt := wi.Workflow.StartAt
 	currentStep = startAt
+	err := util.SetWorkflowObjectToRunning(kubeconfig, wfObjName)
+	if err !=nil {
+		err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+		if err != nil {
+			return err
+		}
+	}
 	for {
 		fmt.Printf("Start Running Step %s\n", currentStep)
 		err := util.SetWorkflowObjectStep(kubeconfig, wfObjName, currentStep)
 		if err != nil {
-			//todo add message to wf object
+			err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+			if err != nil {
+				return err
+			}
 		}
 		if wi.Workflow.Steps[currentStep].Type == "manual" {
-			err := util.SetWorkflowObjectStepToPending(kubeconfig, wfObjName, currentStep)
+			err := handleManualStep(kubeconfig, wfObjName, wi, currentStep)
 			if err != nil {
-				//todo add message to wf object
+				err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+				if err != nil {
+					return err
+				}
 			}
-			stepTrigger := wi.Workflow.Steps[currentStep].StepTrigger
-			stepTrigger.StepName = currentStep
-			wi.StepTriggers = append(wi.StepTriggers, stepTrigger)
-			fmt.Printf("Workflow is pending on manual step %s\n", currentStep)
 			break
 		}
 		isComplete, nextStep, err := executeStep(kubeconfig, wi, handler, wfObjName, currentStep)
 		currentStep = nextStep
 		if err != nil {
-			//todo add message to wf object
+			err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+			if err != nil {
+				return err
+			}
+			return err
 		}
 		if isComplete {
-			fmt.Printf("Workflow %s Complete\n", wi.Workflow.Name)
+			err := completeWorkflow(kubeconfig, wfObjName, wi)
+			if err != nil {
+				err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+				if err != nil {
+					return err
+				}
+				break
+			}
 			break
 		}
 	}
+	return nil
 }
 
-func (wi *WorkflowInstance) ExecutePendingWorkflow(kubeconfig *string, handler handler.Handler, wfObjName string, currentStep string) {
-	fmt.Printf("Start Executing workflow %s\n", wi.Workflow.Name)
+func (wi *WorkflowInstance) ExecutePendingWorkflow(kubeconfig *string, handler handler.Handler, wfObjName string, currentStep string) error{
+	fmt.Printf("Start Executing Pending Workflow %s\n", wi.Workflow.Name)
 	skipFirst := false
 	for {
 		fmt.Printf("Start Running Step %s\n", currentStep)
 		err := util.SetWorkflowObjectStepToRunning(kubeconfig, wfObjName, currentStep)
 		if err != nil {
-			//todo add message to wf object
+			err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+			if err != nil {
+				return err
+			}
 		}
 		if skipFirst {
 			err := util.SetWorkflowObjectStep(kubeconfig, wfObjName, currentStep)
 			if err != nil {
-				//todo add message to wf object
+				err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+				if err != nil {
+					return err
+				}
 			}
 			if wi.Workflow.Steps[currentStep].Type == "manual" {
-				err := util.SetWorkflowObjectStepToPending(kubeconfig, wfObjName, currentStep)
+				err := handleManualStep(kubeconfig, wfObjName, wi, currentStep)
 				if err != nil {
-					//todo add message to wf object
+					err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+					if err != nil {
+						return err
+					}
 				}
-				stepTrigger := wi.Workflow.Steps[currentStep].StepTrigger
-				stepTrigger.StepName = currentStep
-				wi.StepTriggers = append(wi.StepTriggers, stepTrigger)
 				break
 			}
 		}
 		skipFirst = true
 		isComplete, nextStep, err := executeStep(kubeconfig, wi, handler, wfObjName, currentStep)
 		if err != nil {
-			//todo add message to wf object
+			err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+			if err != nil {
+				return err
+			}
+			return err
 		}
 		currentStep = nextStep
 		if isComplete {
-			fmt.Printf("Workflow %s Complete\n", wi.Workflow.Name)
+			err := completeWorkflow(kubeconfig, wfObjName, wi)
+			if err != nil {
+				err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+				if err != nil {
+					return err
+				}
+				break
+			}
 			break
 		}
-
 	}
+	return nil
 }
 
 func ParseExecutorResponse(body []byte) (ExecutorResponse, error) {
@@ -155,7 +239,7 @@ func ParseExecutorResponse(body []byte) (ExecutorResponse, error) {
 	return r, nil
 }
 
-func get_python_executor_port() string {
+func getPythonExecutorPort() string {
 	data, _ := ioutil.ReadFile("/tmp/flint_python_executor_port")
 	port := string(data)
 	return port

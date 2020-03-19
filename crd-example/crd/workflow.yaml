@@ -53,11 +53,14 @@ spec:
                         type: string
                       status:
                         type: string
+                      message:
+                        type: string
                     required:
                       - name
                       - startAt
                       - status
                       - endAt
+                      - message
                     type: object
                   type: array
               required:

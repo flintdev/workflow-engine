@@ -269,7 +269,11 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 							fd.WFObjName = wfObjName
 							var h handler.Handler
 							h.FlowData = fd
-							wi.ExecutePendingWorkflow(kubeconfig, h, wfObjName, currentStep)
+							err := wi.ExecutePendingWorkflow(kubeconfig, h, wfObjName, currentStep)
+							if err != nil {
+								log.Println(err)
+								continue
+							}
 						}
 					}
 				}
@@ -289,9 +293,13 @@ func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
 					err := util.CreateEmptyWorkflowObject(kubeconfig, wfObjName, objName)
 					if err != nil {
 						log.Println(err)
-						break
+						continue
 					}
-					wi.ExecuteWorkflow(kubeconfig, h, wfObjName)
+					err = wi.ExecuteWorkflow(kubeconfig, h, wfObjName)
+					if err != nil {
+						log.Println(err)
+						continue
+					}
 					app.WorkflowInstances[index].StepTriggers = wi.StepTriggers
 				}
 			}
