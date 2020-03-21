@@ -47,18 +47,11 @@ installGVM() {
   fi
 }
 
-# todo change to version comparison
-installGoWithGVM() {
-  gvm use go1.13.5 &> /dev/null
-  gvmUseStatus=$?
-  if [ "$gvmUseStatus" == "0" ]; then
-    echo "Use go version go1.13.5"
-  else
-    echo "Installing go1.13.5"
-    gvm install go1.13.5
-    gvm use go1.13.5
-    echo "go1.13.5 Installation Complete, now using go1.13.5"
-  fi
+installGoBaseVersion() {
+  # shellcheck source=src/lib.sh
+  source "$HOME/.gvm/scripts/gvm"
+  gvm install go1.13.5
+  gvm use go1.13.5
 }
 
 installDocker() {
@@ -115,11 +108,78 @@ runCluster() {
   fi
 }
 
+checkIfGVMHasAvailableVersion () {
+  baseVersion="1.13"
+  # Get current avaliable version in gvm
+  curentVersionArray=()
+  availableVersionArray=()
+
+  # shellcheck source=src/lib.sh
+  source "$HOME/.gvm/scripts/gvm"
+  while read -r line
+  do
+    goVersion=$(echo "$line" | perl -pe '($_)=/([0-9]+([.][0-9]+)+)/')
+    if [ ! "$goVersion" == "" ]; then
+      curentVersionArray+=("$goVersion")
+    fi
+  done < <( gvm list | grep -v ^$ )
+
+  # get all version higher than 1.13
+  for i in "${curentVersionArray[@]}"
+  do :
+  vercomp "$i" "$baseVersion"
+  result=$?
+  if [ ! "$result" == "2" ]; then
+    availableVersionArray+=("$i")
+  fi
+  done
+
+  # use latest available version or install go1.13.5
+  if [ "${#availableVersionArray[@]}" -gt 0 ]; then
+    avaliableVersion=${availableVersionArray[${#availableVersionArray[@]}-1]}
+    gvm use "go$avaliableVersion"
+  else
+    installGoBaseVersion
+  fi
+}
+
+vercomp () {
+    if [[ $1 == $2 ]]
+    then
+        return 0
+    fi
+    local IFS=.
+    local i ver1=($1) ver2=($2)
+    # fill empty fields in ver1 with zeros
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
+    do
+        ver1[i]=0
+    done
+    for ((i=0; i<${#ver1[@]}; i++))
+    do
+        if [[ -z ${ver2[i]} ]]
+        then
+            # fill empty fields in ver2 with zeros
+            ver2[i]=0
+        fi
+        if ((10#${ver1[i]} > 10#${ver2[i]}))
+        then
+            return 1
+        fi
+        if ((10#${ver1[i]} < 10#${ver2[i]}))
+        then
+            return 2
+        fi
+    done
+    return 0
+}
+
+
 main() {
   installHomebrew
   installCurl
   installGVM
-  installGoWithGVM
+  checkIfGVMHasAvailableVersion
   installDocker
   runDocker
   installKubectl
