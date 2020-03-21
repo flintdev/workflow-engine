@@ -1,110 +1,119 @@
 #!/bin/bash
 
-isHomebrewInstalled() {
-  if [ ! -x "$(command -v brew)" ]; then
+installHomebrew() {
+  if [ -x "$(command -v brew)" ]; then
+    echo "Homebrew is already installed"
+  else
     echo "Installing homebrew..."
     ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
     echo "Homebrew Installtion Complete"
-  else
-    echo "Homebrew is already installed"
   fi
 }
 
-isGoInstalled() {
-  if [ ! -x "$(command -v go)" ]; then
-    echo "Installing Go..."
-    installGo
+installCurl() {
+  if [ -x "$(command -v curl)" ]; then
+    echo "Curl is already installed"
   else
-    echo "Go is already installed"
+    echo "Installing Curl..."
+    brew install curl
+    echo "Homebrew Installtion Complete"
   fi
 }
 
-installGo() {
-  VERSION="1.13.5"
-  PLATFORM="darwin-amd64"
-  PACKAGE_NAME="go$VERSION.$PLATFORM.tar.gz"
-  [ -z "$GOROOT" ] && GOROOT="$HOME/.go"
-  [ -z "$GOPATH" ] && GOPATH="$HOME/go"
-
-  if [ -n "`$SHELL -c 'echo $ZSH_VERSION'`" ]; then
-    shell_profile="zshrc"
-  elif [ -n "`$SHELL -c 'echo $BASH_VERSION'`" ]; then
-    shell_profile="bashrc"
-  fi
-
-  if [ -d "$GOROOT" ]; then
-    echo "The Go install directory ($GOROOT) already exists. Exiting."
-    exit 1
-  fi
-
-  echo "Downloading $PACKAGE_NAME ..."
-
-  if hash wget 2>/dev/null; then
-    wget https://storage.googleapis.com/golang/$PACKAGE_NAME -O /tmp/go.tar.gz
+installGVM() {
+  if [ -x "$(command -v gvm)" ]; then
+    echo "gvm is already installed"
   else
-    curl -o /tmp/go.tar.gz https://storage.googleapis.com/golang/$PACKAGE_NAME
-  fi
-
-  if [ $? -ne 0 ]; then
-    echo "Download go package failed! Exiting."
-    exit 1
-  fi
-
-  echo "Extracting File..."
-  mkdir -p "$GOROOT"
-  tar -C "$GOROOT" --strip-components=1 -xzf /tmp/go.tar.gz
-  touch "$HOME/.${shell_profile}"
-  {
-    echo '# GoLang'
-    echo "export GOROOT=${GOROOT}"
-    echo 'export PATH=$GOROOT/bin:$PATH'
-    echo "export GOPATH=$GOPATH"
-    echo 'export PATH=$GOPATH/bin:$PATH'
+    echo "Installing gvm..."
+    $SHELL < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+    # shellcheck source=src/lib.sh
+    source "$HOME/.gvm/scripts/gvm"
+    if [ -n "$($SHELL -c 'echo $ZSH_VERSION')" ]; then
+      shell_profile="zshrc"
+    elif [ -n "$($SHELL -c 'echo $BASH_VERSION')" ]; then
+      shell_profile="bashrc"
+    fi
+    touch "$HOME/.${shell_profile}"
+    {
+    echo '# GVM'
+    echo "export GVM_ROOT=$HOME/.gvm"
+    echo '. $GVM_ROOT/scripts/gvm-default'
     } >> "$HOME/.${shell_profile}"
-
-  mkdir -p $GOPATH/{src,pkg,bin}
-  echo -e "\nGo $VERSION was installed into $GOROOT.\nMake sure to relogin into your shell or run:"
-  echo -e "\n\tsource $HOME/.${shell_profile}\n\nto update your environment variables."
-  rm -f /tmp/go.tar.gz
+    echo "gvm Installation Complete"
+  fi
 }
 
-isDockerInstalled() {
-  if [ ! -x "$(command -v docker)" ]; then
+installGoWithGVM() {
+  echo "Installing go1.13.5"
+  gvm install go1.13.5
+  gvm use go1.13.5
+  echo "go1.13.5 Installation Complete"
+}
+
+installDocker() {
+  if [ -x "$(command -v docker)" ]; then
+    echo "Docker is already installed"
+  else
     echo "Installing Docker..."
     brew cask install docker
     echo "Docker Installation Complete"
-  else
-    echo "Docker is already installed"
   fi
 }
 
-isDockerRunning() {
-  rep=$(curl -s --unix-socket /var/run/docker.sock http://ping > /dev/null)
+runDocker() {
+  curl -s --unix-socket /var/run/docker.sock http://ping &> /dev/null
   status=$?
-
   if [ "$status" == "7" ]; then
     echo "Docker is not running, open docker app..."
     open /Applications/Docker.app
   else
-    echo "Docker is up and running"
+    echo "Docker is already up and running"
   fi
 }
 
-isKindInstalled() {
-  if [ ! -x "$(command -v kind)" ]; then
+installKubectl() {
+  if [ -x "$(command -v kubectl)" ]; then
+    echo "Kubectl is already installed"
+  else
+    brew install kubectl
+  fi
+}
+
+installKind() {
+  if [ -x "$(command -v kind)" ]; then
+    echo "Kind is already installed"
+  else
     echo "Installing Kind..."
     brew install kind
     echo "Kind Installtion Complete"
-    echo "Creating cluster"
+    echo "Creating cluster..."
     kind create cluster
     echo "Cluster was Created"
-  else
-    echo "Kind is already installed"
   fi
 }
 
-isHomebrewInstalled
-isGoInstalled
-isDockerInstalled
-isDockerRunning
-isKindInstalled
+runCluster() {
+  kubectl cluster-info &> /dev/null
+  clusterStatus=$?
+  if [ ! "$clusterStatus" == "0" ]; then
+    echo "Creating cluster..."
+    kind create cluster
+    echo "Cluster was Created"
+  else
+    echo "Cluster is already up and running"
+  fi
+}
+
+main() {
+  installHomebrew
+  installCurl
+  installGVM
+  installGoWithGVM
+  installDocker
+  runDocker
+  installKubectl
+  installKind
+  runCluster
+}
+
+main
