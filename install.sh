@@ -21,7 +21,11 @@ installCurl() {
 }
 
 installGVM() {
-  if [ -x "$(command -v gvm)" ]; then
+  # shellcheck source=src/lib.sh
+  source "$HOME/.gvm/scripts/gvm"
+  gvm version &> /dev/null
+  gvmVersionStatus=$?
+  if [ "$gvmVersionStatus" == "0" ]; then
     echo "gvm is already installed"
   else
     echo "Installing gvm..."
@@ -43,11 +47,18 @@ installGVM() {
   fi
 }
 
+# todo change to version comparison
 installGoWithGVM() {
-  echo "Installing go1.13.5"
-  gvm install go1.13.5
-  gvm use go1.13.5
-  echo "go1.13.5 Installation Complete"
+  gvm use go1.13.5 &> /dev/null
+  gvmUseStatus=$?
+  if [ "$gvmUseStatus" == "0" ]; then
+    echo "Use go version go1.13.5"
+  else
+    echo "Installing go1.13.5"
+    gvm install go1.13.5
+    gvm use go1.13.5
+    echo "go1.13.5 Installation Complete, now using go1.13.5"
+  fi
 }
 
 installDocker() {

@@ -9,7 +9,11 @@ checkIsHomebrewInstalled() {
 }
 
 checkIsGVMInstalled() {
-  if [ -x "$(command -v gvm)" ]; then
+  # shellcheck source=src/lib.sh
+  source "$HOME/.gvm/scripts/gvm"
+  gvm version &> /dev/null
+  gvmVersionStatus=$?
+  if [ "$gvmVersionStatus" == "0" ]; then
     isgvmInstalled=true
   else
     isgvmInstalled=false
@@ -25,7 +29,7 @@ checkIsDockerInstalled() {
 }
 
 checkIsDockerRunning() {
-  curl -s --unix-socket /var/run/docker.sock http://ping > /dev/null
+  curl -s --unix-socket /var/run/docker.sock http://ping &> /dev/null
   dockerStatus=$?
   if [ ! "$dockerStatus" == "7" ]; then
     isDockerRunning=true
