@@ -1,5 +1,25 @@
 #!/usr/bin/env bash
 
+checkIfXcodeCommandLineToolsInstalled() {
+  xcode-select -p &> /dev/null
+  xcodeCommandLineToolsStatus=$?
+  if [ "$xcodeCommandLineToolsStatus" == "0" ]; then
+    isXcodeCommandLineToolsInstalled=true
+  else
+    isXcodeCommandLineToolsInstalled=false
+  fi
+}
+
+checkIfMercurialInstalled() {
+  brew list mercurial &> /dev/null
+  mercurialStatus=$?
+  if [ "$mercurialStatus" == "0" ]; then
+    isMercurialInstalled=true
+  else
+    isMercurialInstalled=false
+  fi
+}
+
 checkIsHomebrewInstalled() {
   if [ -x "$(command -v brew)" ]; then
     isHomebrewInstalled=true
@@ -66,12 +86,15 @@ checkIsClusterRunning() {
 
 outputJson() {
   echo -e "{\"package\":{\"Homebrew\":\"$isHomebrewInstalled\", \"GVM\":\"$isgvmInstalled\", \
+\"Mercurial\":\"$isMercurialInstalled\", \"Xcode Command Line Tools\":\"$isXcodeCommandLineToolsInstalled\", \
 \"Docker\":\"$isDockerInstalled\", \"Kubectl\":\"$isKubectlInstalled\", \"Kind\":\"$isKindInstalled\"}, \
 \"state\":{\"Docker\":\"$isDockerRunning\", \"Cluster\":\"$isClusterRunning\"}}"
 }
 
 main() {
+  checkIfXcodeCommandLineToolsInstalled
   checkIsHomebrewInstalled
+  checkIfMercurialInstalled
   checkIsGVMInstalled
   checkIsDockerInstalled
   checkIsDockerRunning

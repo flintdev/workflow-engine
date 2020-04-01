@@ -1,5 +1,28 @@
 #!/usr/bin/env bash
 
+installXcodeCommandLineTools() {
+  xcode-select -p &> /dev/null
+  xcodeCommandLineToolsStatus=$?
+  if [ "$xcodeCommandLineToolsStatus" == "0" ]; then
+    echo "Xcode Command Line Tools is already installed"
+  else
+    xcode-select --install
+    echo "Xcode Command Line Tools Installation Complete"
+  fi
+}
+
+installMercurial() {
+  brew list mercurial &> /dev/null
+  mercurialVersionStatus=$?
+  if [ "$mercurialVersionStatus" == "0" ]; then
+    echo "Mercurial is already installed"
+  else
+    echo "Installing Mercurial..."
+    brew install Mercurial
+    echo "Mercurial Installation Complete"
+  fi
+}
+
 installHomebrew() {
   if [ -x "$(command -v brew)" ]; then
     echo "Homebrew is already installed"
@@ -179,6 +202,8 @@ vercomp () {
 
 
 main() {
+  installXcodeCommandLineTools
+  installMercurial
   installHomebrew
   installCurl
   installGVM
