@@ -25,7 +25,7 @@ installCurl() {
 
 installGVM() {
   # shellcheck source=src/lib.sh
-  source "$HOME/.gvm/scripts/gvm"
+  source "$HOME/.gvm/scripts/gvm" &> /dev/null
   gvm version &> /dev/null
   gvmVersionStatus=$?
   if [ "$gvmVersionStatus" == "0" ]; then
