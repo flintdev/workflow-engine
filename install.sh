@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 installHomebrew() {
   if [ -x "$(command -v brew)" ]; then
@@ -7,7 +7,8 @@ installHomebrew() {
     brew update &> /dev/null
   else
     echo "Installing homebrew..."
-    ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+    URL_BREW='https://raw.githubusercontent.com/Homebrew/install/master/install.sh'
+    echo | /bin/bash -c "$(curl -fsSL $URL_BREW)"
     echo "Homebrew Installtion Complete"
   fi
 }
@@ -37,7 +38,7 @@ installGVM() {
     if [ -n "$($SHELL -c 'echo $ZSH_VERSION')" ]; then
       shell_profile="zshrc"
     elif [ -n "$($SHELL -c 'echo $BASH_VERSION')" ]; then
-      shell_profile="bashrc"
+      shell_profile="profile"
     fi
     touch "$HOME/.${shell_profile}"
     {

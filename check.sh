@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 checkIsHomebrewInstalled() {
   if [ -x "$(command -v brew)" ]; then
