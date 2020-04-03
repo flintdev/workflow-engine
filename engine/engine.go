@@ -9,11 +9,11 @@ import (
 	"github.com/flintdev/workflow-engine/handler/flowdata"
 	"github.com/flintdev/workflow-engine/util"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/util/jsonpath"
 	"k8s.io/kubectl/pkg/cmd/get"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -46,6 +46,8 @@ type StepTriggerCondition struct {
 type Step struct {
 	Type        string               `json:"type"`
 	StepTrigger StepTriggerCondition `json:"trigger"`
+	Inputs      []string             `json:"inputs"`
+	Condition   string               `json:"condition"`
 	NextSteps   []NextStep           `json:"nextSteps"`
 }
 
@@ -68,9 +70,12 @@ type App struct {
 }
 
 type Event struct {
-	Type   string
-	Model  string
-	Object interface{}
+	Type    string
+	Model   string
+	Kind    string
+	Name    string
+	Version string
+	Object  interface{}
 }
 
 type GVR struct {
@@ -95,6 +100,13 @@ func CreateApp() App {
 
 func (wi *WorkflowInstance) RegisterWorkflowDefinition(f func() Workflow) {
 	w := f()
+	for stepName, step := range w.Steps {
+		if step.Type == "manual" {
+			stepTrigger := w.Steps[stepName].StepTrigger
+			stepTrigger.StepName = stepName
+			wi.StepTriggers = append(wi.StepTriggers, stepTrigger)
+		}
+	}
 	wi.Workflow = w
 }
 
@@ -217,54 +229,77 @@ func (app *App) Start() {
 }
 
 func triggerWorkflow(kubeconfig *string, ch <-chan watch.Event, app *App) {
+	logger, _ := zap.NewProduction()
+	sugarLogger := logger.Sugar()
+	defer sugarLogger.Sync()
 	for event := range ch {
-		fmt.Println("Received Event")
-		fmt.Println("Event Type:", event.Type)
-		fmt.Println("Event Object", event.Object)
+		sugarLogger.Infow("Received Event",
+			"Type", event.Type,
+			"Object", event.Object,
+		)
 		d := event.Object.(*unstructured.Unstructured)
 		objKind := d.GetKind()
 		objName := d.GetName()
-		creationTimestamp, found, err := unstructured.NestedString(d.Object, "metadata", "creationTimestamp")
-		if err != nil || !found {
-			log.Printf("creationTimestamp not found for %s %s: error=%s\n", objKind, d.GetName(), err)
-			continue
-		}
+		objVersion := d.GetAPIVersion()
+		creationTimestamp, _, _ := unstructured.NestedString(d.Object, "metadata", "creationTimestamp")
 		t, err := time.Parse(time.RFC3339, creationTimestamp)
 		if err != nil {
-			log.Printf("cannot parse timestamp %s: error=%s\n", creationTimestamp, err)
+			message := fmt.Sprintf("cannot parse timestamp %s: error=%s", creationTimestamp, err)
+			sugarLogger.Error(message,
+				"Type", event.Type,
+				"Object", event.Object,
+			)
 			continue
 		}
 		if app.StartAt.After(t) && event.Type == "ADDED" {
 			continue
 		}
 		e := Event{
-			Type:   string(event.Type),
-			Model:  strings.ToLower(objKind),
-			Object: event.Object.(*unstructured.Unstructured).Object,
+			Type:    string(event.Type),
+			Model:   strings.ToLower(objKind),
+			Object:  event.Object.(*unstructured.Unstructured).Object,
+			Kind:    objKind,
+			Name:    objName,
+			Version: objVersion,
 		}
-		for index, wi := range app.WorkflowInstances {
-			go triggerWorkflowInstance(kubeconfig, app, objName, wi, e, index)
+		for _, wi := range app.WorkflowInstances {
+			go triggerWorkflowInstance(kubeconfig, objName, wi, e)
 		}
 	}
 }
 
-func triggerWorkflowInstance(kubeconfig *string, app *App, objName string, wi WorkflowInstance, e Event, index int) {
+func triggerWorkflowInstance(kubeconfig *string, objName string, wi WorkflowInstance, e Event) {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	isWorkflowTriggered, err := util.CheckIfWorkflowIsTriggered(kubeconfig, objName)
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error(),
+			zap.String("Kind", e.Kind),
+			zap.String("Name", e.Name),
+			zap.String("Version", e.Version),
+		)
 	}
 	if isWorkflowTriggered {
 		for _, stepTrigger := range wi.StepTriggers {
 			result, err := ParseStepTrigger(stepTrigger, e)
 			if err != nil {
-				log.Println(err)
+				logger.Warn(err.Error(),
+					zap.String("Kind", e.Kind),
+					zap.String("Name", e.Name),
+					zap.String("Version", e.Version),
+					zap.String("Trigger condition", stepTrigger.When),
+				)
 				continue
 			}
 			if result {
 				currentStep := stepTrigger.StepName
 				objList, err := util.GetPendingWorkflowList(kubeconfig, objName, currentStep)
 				if err != nil {
-					log.Print(err)
+					logger.Error(err.Error(),
+						zap.String("Kind", e.Kind),
+						zap.String("Name", e.Name),
+						zap.String("Version", e.Version),
+					)
 					continue
 				}
 				for _, obj := range objList.Items {
@@ -274,20 +309,21 @@ func triggerWorkflowInstance(kubeconfig *string, app *App, objName string, wi Wo
 					fd.WFObjName = wfObjName
 					var h handler.Handler
 					h.FlowData = fd
-					err := wi.ExecutePendingWorkflow(kubeconfig, h, wfObjName, currentStep)
-					if err != nil {
-						log.Println(err)
-						continue
-					}
+					wi.ExecuteWorkflow(kubeconfig, logger, h, wfObjName, currentStep, true)
 				}
 			}
 		}
 	} else {
 		result, err := ParseTrigger(wi.Workflow.Trigger, e)
 		if err != nil {
-			log.Println(err)
+			logger.Warn(err.Error(),
+				zap.String("Kind", e.Kind),
+				zap.String("Name", e.Name),
+				zap.String("Version", e.Version),
+			)
 		}
 		if result {
+			startAt := wi.Workflow.StartAt
 			wfObjName := util.GenerateWorkflowObjName()
 			var fd flowdata.FlowData
 			fd.Kubeconfig = kubeconfig
@@ -296,21 +332,22 @@ func triggerWorkflowInstance(kubeconfig *string, app *App, objName string, wi Wo
 			h.FlowData = fd
 			err := util.CreateEmptyWorkflowObject(kubeconfig, wfObjName, objName)
 			if err != nil {
-				log.Println(err)
+				logger.Error(err.Error())
+			} else {
+				wi.ExecuteWorkflow(kubeconfig, logger, h, wfObjName, startAt, false)
 			}
-			err = wi.ExecuteWorkflow(kubeconfig, h, wfObjName)
-			if err != nil {
-				log.Println(err)
-			}
-			app.WorkflowInstances[index].StepTriggers = wi.StepTriggers
+
 		}
 	}
 }
 
 func BulkWatchObject(kubeconfig *string, namespace string, gvrList []GVR) <-chan watch.Event {
 	var chans []<-chan watch.Event
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	for _, gvr := range gvrList {
-		fmt.Printf("Start Watching Resource Group: %s, Version: %s, Resource: %s\n", gvr.Group, gvr.Version, gvr.Resource)
+		message := fmt.Sprintf("Start Watching Resource Group: %s, Version: %s, Resource: %s", gvr.Group, gvr.Version, gvr.Resource)
+		logger.Info(message)
 		chans = append(chans, util.WatchObject(kubeconfig, namespace, gvr.Group, gvr.Version, gvr.Resource))
 	}
 	ch := mergeWatchChannels(chans)

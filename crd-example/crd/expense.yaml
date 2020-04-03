@@ -36,13 +36,13 @@ spec:
               properties:
                 user:
                   type: string
-                switch:
+                type:
                   type: boolean
                 approval:
                   type: boolean
               required:
                 - user
-                - switch
+                - type
                 - approval
               type: object
             status:

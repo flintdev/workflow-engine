@@ -4,3 +4,4 @@ metadata:
   name: approval01
 spec:
   user: gadai
+  approval: false
