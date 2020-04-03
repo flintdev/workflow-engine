@@ -29,15 +29,14 @@ func CreateEmptyWorkflowObject(kubeconfig *string, wfObjName string, modelObjNam
 				"name": wfObjName,
 				"labels": map[string]interface{}{
 					"modelObjName": modelObjName,
-					"currentStep":  "init",
 				},
 			},
 			"spec": map[string]interface{}{
 				"steps":       []map[string]interface{}{},
 				"flowData":    "{}",
 				"currentStep": "init",
-				"message":     "Init Workflow",
 				"status":      "init",
+				"message":     "",
 			},
 		},
 	}
@@ -46,6 +45,22 @@ func CreateEmptyWorkflowObject(kubeconfig *string, wfObjName string, modelObjNam
 		return err
 	}
 	return nil
+}
+
+func GetWorkflowObjectStatus(kubeconfig *string, objName string) (string, error) {
+	result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+
+	if err != nil {
+		return "", err
+	}
+
+	status, found, err := unstructured.NestedString(result.Object, "spec", "status")
+	if err != nil || !found || status == "" {
+		message := fmt.Sprintf("status not found or error in spec: %s", err)
+		return "", errors.New(message)
+	}
+
+	return status, nil
 }
 
 func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path string) (string, error) {
@@ -150,7 +165,7 @@ func SetWorkflowObjectToRunning(kubeconfig *string, objName string) error {
 }
 
 func SetWorkflowObjectToPending(kubeconfig *string, objName string) error {
-	err := SetWorkflowObjectStatus(kubeconfig, objName,  "Pending")
+	err := SetWorkflowObjectStatus(kubeconfig, objName, "Pending")
 	if err != nil {
 		return err
 	}
@@ -232,6 +247,65 @@ func SetWorkflowObjectCurrentStepLabel(kubeconfig *string, objName string, curre
 	return nil
 }
 
+func SetWorkflowObjectPendingStepLabel(kubeconfig *string, objName string, stepName string) error {
+
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		return err
+	}
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(result.Object, "Pending", "metadata", "labels", stepName); err != nil {
+			return err
+		}
+		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
+
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
+	})
+	if retryErr != nil {
+		return retryErr
+	}
+	return nil
+}
+
+func RemoveWorkflowObjectPendingStepLabel(kubeconfig *string, objName string, stepName string) error {
+
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		return err
+	}
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err != nil {
+			return err
+		}
+		unstructured.RemoveNestedField(result.Object, "metadata", "labels", stepName)
+
+		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
+
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
+	})
+	if retryErr != nil {
+		return retryErr
+	}
+	return nil
+}
+
 func SetWorkflowObjectStep(kubeconfig *string, objName string, stepName string) error {
 	status := "Running"
 	currentTime := time.Now().UTC().String()
@@ -259,7 +333,7 @@ func SetWorkflowObjectStep(kubeconfig *string, objName string, stepName string) 
 			"name":    stepName,
 			"startAt": currentTime,
 			"endAt":   "",
-			"message":   "",
+			"message": "",
 			"status":  status,
 		}
 		newSteps := append(steps, tempStep)
@@ -314,6 +388,54 @@ func SetStepToWorkflowObject(kubeconfig *string, stepName string, objName string
 			"name":    stepName,
 			"startAt": currentTime,
 			"endAt":   "",
+			"message": "",
+			"status":  status,
+		}
+		newSteps := append(steps, tempStep)
+
+		if err := unstructured.SetNestedField(result.Object, newSteps, "spec", "steps"); err != nil {
+			return err
+		}
+
+		res := schema.GroupVersionResource{Group: wfGroup, Version: wfVersion, Resource: wfResource}
+
+		_, err = client.Resource(res).Namespace(wfNamespace).Update(result, metav1.UpdateOptions{})
+		return err
+	})
+	if retryErr != nil {
+		return retryErr
+	}
+	return nil
+}
+
+func SetPendingStepToWorkflowObject(kubeconfig *string, stepName string, objName string) error {
+	status := "Pending"
+	currentTime := time.Now().UTC().String()
+
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		return err
+	}
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+		if err != nil {
+			return err
+		}
+		steps, found, err := unstructured.NestedSlice(result.Object, "spec", "steps")
+		if err != nil || !found || steps == nil {
+			message := fmt.Sprintf("steps not found or error in spec: %s", err)
+			return errors.New(message)
+		}
+		tempStep := map[string]interface{}{
+			"name":    stepName,
+			"startAt": currentTime,
+			"endAt":   "",
+			"message": "",
 			"status":  status,
 		}
 		newSteps := append(steps, tempStep)
@@ -382,39 +504,39 @@ func SetWorkflowObjectFlowData(kubeconfig *string, objName string, path string, 
 	return nil
 }
 
-func SetWorkflowObjectStepToComplete(kubeconfig *string, objName string, stepName string) error {
-	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Complete")
+func SetWorkflowObjectStepToComplete(kubeconfig *string, objName string, stepName string, message string) error {
+	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Complete", message)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func SetWorkflowObjectStepToRunning(kubeconfig *string, objName string, stepName string) error {
-	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Running")
+func SetWorkflowObjectStepToRunning(kubeconfig *string, objName string, stepName string, message string) error {
+	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Running", message)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func SetWorkflowObjectStepToPending(kubeconfig *string, objName string, stepName string) error {
-	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Pending")
+func SetWorkflowObjectStepToPending(kubeconfig *string, objName string, stepName string, message string) error {
+	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Pending", message)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func SetWorkflowObjectStepToFailure(kubeconfig *string, objName string, stepName string) error {
-	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Failure")
+func SetWorkflowObjectStepToFailure(kubeconfig *string, objName string, stepName string, message string) error {
+	err := setWorkflowObjectStepStatus(kubeconfig, objName, stepName, "Failure", message)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName string, status string) error {
+func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName string, status string, message string) error {
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		return err
@@ -457,7 +579,13 @@ func setWorkflowObjectStepStatus(kubeconfig *string, objName string, stepName st
 			return err
 		}
 
-		if status == "Complete" {
+		if message != "" {
+			if err := unstructured.SetNestedField(steps[index].(map[string]interface{}), message, "message"); err != nil {
+				return err
+			}
+		}
+
+		if status == "Complete" || status == "Failure" {
 			currentTime := time.Now().UTC().String()
 			if err := unstructured.SetNestedField(steps[index].(map[string]interface{}), currentTime, "endAt"); err != nil {
 				return err
@@ -526,7 +654,6 @@ func SetWorkflowObjectFailedStep(kubeconfig *string, objName string, stepName st
 			return err
 		}
 
-
 		if err := unstructured.SetNestedField(result.Object, steps, "spec", "steps"); err != nil {
 			return err
 		}
@@ -540,6 +667,97 @@ func SetWorkflowObjectFailedStep(kubeconfig *string, objName string, stepName st
 		return retryErr
 	}
 	return nil
+}
+
+func CheckAllStepStatus(kubeconfig *string, objName string) (string, string, error) {
+	// return enum: allCompleteSuccess, hasRunning, allCompleteHasFailure, hasPending
+
+	var failureSteps []string
+
+	result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+	if err != nil {
+		return "", "", err
+	}
+	steps, found, err := unstructured.NestedSlice(result.Object, "spec", "steps")
+	if err != nil || !found || steps == nil {
+		message := fmt.Sprintf("steps not found or error in spec: %s", err)
+		return "", "", errors.New(message)
+	}
+	hasFailure := false
+	for _, step := range steps {
+		stepName := ""
+		status := ""
+		v := reflect.ValueOf(step)
+		if v.Kind() == reflect.Map {
+			for _, key := range v.MapKeys() {
+				if key.Interface() == "status" {
+					status = v.MapIndex(key).Interface().(string)
+				}
+				if key.Interface() == "name" {
+					stepName = v.MapIndex(key).Interface().(string)
+				}
+			}
+		}
+		switch status {
+		case "Running":
+			return "hasRunning", "", nil
+		case "Pending":
+			return "hasPending", "", nil
+		case "Complete":
+		case "Failure":
+			hasFailure = true
+			failureSteps = append(failureSteps, stepName)
+		}
+	}
+	if hasFailure {
+		message := fmt.Sprintf("Failed on steps: %s", strings.Join(failureSteps[:], ","))
+		return "allCompleteHasFailure", message, nil
+	}
+	return "allCompleteSuccess", "", nil
+}
+
+func CheckAllStepStatusByList(kubeconfig *string, objName string, stepsList []string) (string, error) {
+	// return enum: all_success, all_failed
+	var statusList []string
+
+	result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
+	if err != nil {
+		return "", err
+	}
+	steps, found, err := unstructured.NestedSlice(result.Object, "spec", "steps")
+	if err != nil || !found || steps == nil {
+		message := fmt.Sprintf("steps not found or error in spec: %s", err)
+		return "", errors.New(message)
+	}
+	for _, step := range steps {
+		stepName := ""
+		status := ""
+		v := reflect.ValueOf(step)
+		if v.Kind() == reflect.Map {
+			for _, key := range v.MapKeys() {
+				if key.Interface() == "status" {
+					status = v.MapIndex(key).Interface().(string)
+				}
+				if key.Interface() == "name" {
+					stepName = v.MapIndex(key).Interface().(string)
+				}
+			}
+		}
+		for _, name := range stepsList {
+			if name == stepName {
+				statusList = append(statusList, status)
+			}
+		}
+	}
+
+	for _, status := range statusList {
+		if status == "Complete" {
+			continue
+		} else {
+			return "no", nil
+		}
+	}
+	return "all_success", nil
 }
 
 func CheckIfWorkflowIsTriggered(kubeconfig *string, modelObjName string) (bool, error) {
@@ -557,7 +775,7 @@ func CheckIfWorkflowIsTriggered(kubeconfig *string, modelObjName string) (bool, 
 
 func GetPendingWorkflowList(kubeconfig *string, modelObjName string, currentStep string) (*unstructured.UnstructuredList, error) {
 	var errorReturn *unstructured.UnstructuredList
-	labelSelector := fmt.Sprintf("modelObjName=%s, currentStep=%s", modelObjName, currentStep)
+	labelSelector := fmt.Sprintf("modelObjName=%s, %s=%s", modelObjName, currentStep, "Pending")
 	list, err := ListObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, labelSelector)
 	if err != nil {
 		return errorReturn, err

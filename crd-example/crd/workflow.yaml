@@ -36,8 +36,6 @@ spec:
               properties:
                 flowData:
                   type: string
-                currentStep:
-                  type: string
                 message:
                   type: string
                 status:
@@ -66,7 +64,6 @@ spec:
               required:
                 - steps
                 - flowData
-                - currentStep
                 - message
                 - status
               type: object

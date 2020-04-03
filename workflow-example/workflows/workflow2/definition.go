@@ -19,20 +19,10 @@ func ParseDefinition() workflowFramework.Workflow {
 		"step1": {
 			"type": "automation",
 			"nextSteps": [{
-					"name": "step2",
-					"condition": {
-						"key": "$.workflow2.step1.field1.field2",
-						"value": "test2",
-						"operator": "="
-					}
+					"name": "step2"
 				},
 				{
-					"name": "step3",
-					"condition": {
-						"key": "step1.result",
-						"value": "Failure",
-						"operator": "="
-					}
+					"name": "step3"
 				}
 			]
 		},
@@ -45,11 +35,36 @@ func ParseDefinition() workflowFramework.Workflow {
 		"step3": {
 			"type": "automation",
 			"nextSteps": [{
-				"name": "step4"
+				"name": "step6"
 			}]
 		},
 		"step4": {
 			"type": "automation",
+			"nextSteps": [{
+				"name": "step5"
+			}]
+		},
+		"step5": {
+			"type": "automation",
+			"nextSteps": [{
+				"name": "step7"
+			}]
+		},
+		"step6": {
+			"type": "manual",
+			"trigger": {
+				"model": "approval",
+				"eventType": "MODIFIED",
+				"when": "'spec.approval' == 'true'"
+			},
+			"nextSteps": [{
+				"name": "step7"
+			}]
+		},
+		"step7": {
+			"type": "hub",
+			"inputs": ["step5", "step6"],
+			"condition": "all_success",
 			"nextSteps": [{
 				"name": "end"
 			}]

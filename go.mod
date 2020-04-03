@@ -11,6 +11,7 @@ require (
 	github.com/googleapis/gnostic v0.1.0 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/ginkgo v1.11.0 // indirect
+	go.uber.org/zap v1.14.1
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/sys v0.0.0-20191022100944-742c48ecaeb7 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect

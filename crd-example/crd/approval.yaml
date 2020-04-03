@@ -36,8 +36,11 @@ spec:
               properties:
                 user:
                   type: string
+                approval:
+                  type: boolean
               required:
                 - user
+                - approval
               type: object
             status:
               description: ApprovalStatus defines the observed state of Approval
