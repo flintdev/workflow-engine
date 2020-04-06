@@ -63,7 +63,7 @@ func GetWorkflowObjectStatus(kubeconfig *string, objName string) (string, error)
 	return status, nil
 }
 
-func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path string) (string, error) {
+func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path string) (interface{}, error) {
 	path = ParseFlowDataKey(path)
 	result, err := GetObj(kubeconfig, wfNamespace, wfGroup, wfVersion, wfResource, objName)
 
@@ -76,7 +76,6 @@ func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path str
 		message := fmt.Sprintf("flowData not found or error in spec: %s", err)
 		return "", errors.New(message)
 	}
-
 	m, err := ConvertJsonStringToMap(flowData)
 	if err != nil {
 		return "", err
@@ -479,7 +478,7 @@ func SetWorkflowObjectFlowData(kubeconfig *string, objName string, path string, 
 			return errors.New(message)
 		}
 
-		m, err := ConvertJsonStringToMap(flowData)
+		m, err := ConvertJsonStringToStringMap(flowData)
 		if err != nil {
 			return err
 		}

@@ -6,8 +6,6 @@ import (
 	workflowFramework "github.com/flintdev/workflow-engine/engine"
 )
 
-// Example of event.Type == MODIFIED
-
 func ParseDefinition() workflowFramework.Workflow {
 	var w workflowFramework.Workflow
 	definition := `{
@@ -22,24 +20,18 @@ func ParseDefinition() workflowFramework.Workflow {
 		"step1": {
 			"type": "automation",
 			"nextSteps": [{
-					"name": "step2",
-					"condition": {
-						"key": "$.workflow1.step1.field1.field2",
-						"value": "test1",
-						"operator": "="
-					}
-				},
-				{
-					"name": "step3",
-					"condition": {
-						"key": "step1.result",
-						"value": "Failure",
-						"operator": "="
-					}
-				}
-			]
+				"name": "step2",
+				"when": "'$.workflow1.step1.field1' == 'test1'"
+			}]
 		},
 		"step2": {
+			"type": "automation",
+			"nextSteps": [{
+				"name": "step3",
+				"when": "'$.workflow1.step1.field2' == 'test2' || '$.workflow1.step1.field3' == 'test2'"
+			}]
+		},
+		"step3": {
 			"type": "manual",
 			"trigger": {
 				"model": "expense",
@@ -50,13 +42,25 @@ func ParseDefinition() workflowFramework.Workflow {
 				"name": "step4"
 			}]
 		},
-		"step3": {
+		"step4": {
 			"type": "automation",
 			"nextSteps": [{
-				"name": "step4"
+					"name": "step5",
+					"when": "'$.workflow1.step1.field4' < 2"
+				},
+				{
+					"name": "end",
+					"when": "'$.workflow1.step1.field4' > 2"
+				}
+			]
+		},
+		"step5": {
+			"type": "automation",
+			"nextSteps": [{
+				"name": "step6"
 			}]
 		},
-		"step4": {
+		"step6": {
 			"type": "automation",
 			"nextSteps": [{
 				"name": "end"

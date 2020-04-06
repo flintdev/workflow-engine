@@ -13,8 +13,19 @@ func ConvertMapToJsonString(m map[string]string) (string, error) {
 	return jsonStr, nil
 }
 
-func ConvertJsonStringToMap(s string) (map[string]string, error) {
+func ConvertJsonStringToStringMap(s string) (map[string]string, error) {
 	m := make(map[string]string)
+
+	err := json.Unmarshal([]byte(s), &m)
+
+	if err != nil {
+		return m, nil
+	}
+	return m, nil
+}
+
+func ConvertJsonStringToMap(s string) (map[string]interface{}, error) {
+	m := make(map[string]interface{})
 
 	err := json.Unmarshal([]byte(s), &m)
 

@@ -64,7 +64,7 @@ func ParseDefinition() workflowFramework.Workflow {
 			"nextSteps": [{
 					"name": "step2",
 					"condition": {
-						"key": "$.workflow1.step1.field1.field2",
+						"key": "$.workflow1.step1.field1",
 						"value": "test1",
 						"operator": "="
 					}

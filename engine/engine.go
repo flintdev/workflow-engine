@@ -26,8 +26,8 @@ type StepCondition struct {
 }
 
 type NextStep struct {
-	Name      string        `json:"name"`
-	Condition StepCondition `json:"condition"`
+	Name string `json:"name"`
+	When string `json:"when"`
 }
 
 type TriggerCondition struct {
@@ -164,7 +164,7 @@ func ParseTriggerCondition(input string, e Event) (bool, error) {
 	var varTokenSlice []interface{}
 
 	tokens := expression.Tokens()
-	for i := 0; i < len(tokens); i += 3 {
+	for i := 0; i < len(tokens); i += 4 {
 		varTokenSlice = append(varTokenSlice, tokens[i].Value)
 	}
 
@@ -189,11 +189,13 @@ func ParseTriggerCondition(input string, e Event) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if output == nil {
+	switch output.(type) {
+	case bool:
+		result := output.(bool)
+		return result, nil
+	default:
 		return false, errors.New("failed to evaluate expression input")
 	}
-	result := output.(bool)
-	return result, nil
 }
 
 func getFiledValueByJsonPath(e Event, fieldInput string) (string, error) {

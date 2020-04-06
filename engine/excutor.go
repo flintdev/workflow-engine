@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Knetic/govaluate"
 	"github.com/flintdev/workflow-engine/handler"
 	"github.com/flintdev/workflow-engine/util"
 	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 type ExecutorResponse struct {
@@ -165,6 +167,12 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 				logError(logger, wfObjName, stepName, err.Error())
 				return
 			}
+			if len(nextSteps) == 0 {
+				err = checkAllExistingStepsStatus(kubeconfig, logger, wfObjName, stepName)
+				if err != nil {
+					return
+				}
+			}
 			return
 		}
 		err = util.SetWorkflowObjectStepToComplete(kubeconfig, wfObjName, stepName, "")
@@ -192,42 +200,9 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 			if wfStatus == "Failure" {
 				return
 			}
-			// check all existing steps status.
-			status, message, err := util.CheckAllStepStatus(kubeconfig, wfObjName)
+			err = checkAllExistingStepsStatus(kubeconfig, logger, wfObjName, stepName)
 			if err != nil {
-				logError(logger, wfObjName, stepName, err.Error())
-				err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
-				if err != nil {
-					logError(logger, wfObjName, stepName, err.Error())
-					return
-				}
 				return
-			}
-			switch status {
-			case "allCompleteSuccess":
-				err := util.SetWorkflowObjectToComplete(kubeconfig, wfObjName)
-				if err != nil {
-					logError(logger, wfObjName, stepName, err.Error())
-					err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
-					if err != nil {
-						logError(logger, wfObjName, stepName, err.Error())
-						return
-					}
-					return
-				}
-			case "hasRunning":
-			case "hasPending":
-			case "allCompleteHasFailure":
-				err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, message)
-				if err != nil {
-					logError(logger, wfObjName, stepName, err.Error())
-					err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
-					if err != nil {
-						logError(logger, wfObjName, stepName, err.Error())
-						return
-					}
-					return
-				}
 			}
 		} else {
 			for _, step := range nextSteps {
@@ -237,37 +212,115 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 	}
 }
 
+// check all existing steps status.
+func checkAllExistingStepsStatus(kubeconfig *string, logger *zap.Logger, wfObjName string, stepName string) error {
+	status, message, err := util.CheckAllStepStatus(kubeconfig, wfObjName)
+	if err != nil {
+		logError(logger, wfObjName, stepName, err.Error())
+		err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+		if err != nil {
+			logError(logger, wfObjName, stepName, err.Error())
+			return err
+		}
+		return err
+	}
+	switch status {
+	case "allCompleteSuccess":
+		err := util.SetWorkflowObjectToComplete(kubeconfig, wfObjName)
+		if err != nil {
+			logError(logger, wfObjName, stepName, err.Error())
+			err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+			if err != nil {
+				logError(logger, wfObjName, stepName, err.Error())
+				return err
+			}
+			return err
+		}
+	case "hasRunning":
+	case "hasPending":
+	case "allCompleteHasFailure":
+		err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, message)
+		if err != nil {
+			logError(logger, wfObjName, stepName, err.Error())
+			err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+			if err != nil {
+				logError(logger, wfObjName, stepName, err.Error())
+				return err
+			}
+			return err
+		}
+	}
+	return nil
+}
+
 // get next steps by a given step.
 func getNextSteps(wi *WorkflowInstance, r ExecutorResponse, stepName string, handler handler.Handler) ([]NextStep, error) {
 	var nextMatchedSteps []NextStep
-	emptyCondition := StepCondition{}
 	if r.Status == "success" {
 		nextSteps := wi.Workflow.Steps[stepName].NextSteps
 		for _, step := range nextSteps {
-			condition := step.Condition
-			if condition == emptyCondition {
+			if step.When == "" {
 				nextMatchedSteps = append(nextMatchedSteps, step)
 				continue
 			}
-			key := condition.Key
-			value := condition.Value
-			operator := condition.Operator
-			flowDataResult, err := handler.FlowData.Get(key)
+			result, err := parseStepCondition(step.When, handler)
+			fmt.Println(step.When)
+			fmt.Println(result)
 			if err != nil {
 				return nextMatchedSteps, err
 			}
-			switch operator {
-			case "=":
-				if value == flowDataResult {
-					nextMatchedSteps = append(nextMatchedSteps, step)
-					continue
-				}
+			if result {
+				nextMatchedSteps = append(nextMatchedSteps, step)
 			}
 		}
 		return nextMatchedSteps, nil
 	} else {
 		message := fmt.Sprintf(r.Message)
 		return nextMatchedSteps, errors.New(message)
+	}
+}
+
+//parse step condition
+func parseStepCondition(input string, handler handler.Handler) (bool, error) {
+	expression, err := govaluate.NewEvaluableExpression(input)
+	if err != nil {
+		return false, err
+	}
+
+	var varTokenSlice []interface{}
+
+	tokens := expression.Tokens()
+	for i := 0; i < len(tokens); i += 4 {
+		varTokenSlice = append(varTokenSlice, tokens[i].Value)
+	}
+	parameters := make(map[string]interface{})
+
+	for _, token := range varTokenSlice {
+		tokenValue := token.(string)
+		parsedTokenValue := util.ParseFlowDataKey(tokenValue)
+		parsedTokenValue = strings.Replace(parsedTokenValue, ".", "_", -1)
+		flowDataResult, err := handler.FlowData.Get(tokenValue)
+		if err != nil {
+			return false, err
+		}
+		parameters[parsedTokenValue] = flowDataResult
+		input = strings.Replace(input, "'"+tokenValue+"'", parsedTokenValue, -1)
+	}
+	newExpression, err := govaluate.NewEvaluableExpression(input)
+	if err != nil {
+		return false, err
+	}
+
+	output, err := newExpression.Evaluate(parameters)
+	if err != nil {
+		return false, err
+	}
+	switch output.(type) {
+	case bool:
+		result := output.(bool)
+		return result, nil
+	default:
+		return false, errors.New("failed to evaluate expression input")
 	}
 }
 

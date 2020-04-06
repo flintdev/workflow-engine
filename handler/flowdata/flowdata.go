@@ -17,7 +17,7 @@ func (fd *FlowData) Set(path string, value string) error {
 	return nil
 }
 
-func (fd *FlowData) Get(path string) (string, error) {
+func (fd *FlowData) Get(path string) (interface{}, error) {
 	kubeconfig := fd.Kubeconfig
 	objName := fd.WFObjName
 	r, err := util.GetWorkflowObjectFlowDataValue(kubeconfig, objName, path)
