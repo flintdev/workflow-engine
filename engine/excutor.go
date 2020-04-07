@@ -123,7 +123,8 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 	}
 
 	// start executing step
-	url := fmt.Sprintf("http://127.0.0.1:%s/execute?workflow=%s&step=%s&obj_name=%s", port, wi.Workflow.Name, stepName, wfObjName)
+	url := fmt.Sprintf("http://127.0.0.1:%s/execute?workflow=%s&step=%s&obj_name=%s&group=%s&version=%s&resource=%s&namespace=%s",
+		port, wi.Workflow.Name, stepName, wfObjName, util.WFGroup, util.WFVersion, util.WFResource, util.WFNamespace)
 	message := fmt.Sprintf("Sent GET request to %s", url)
 	logInfo(logger, wfObjName, stepName, message)
 	response, err := http.Get(url)
@@ -315,9 +316,6 @@ func parseStepCondition(input string, handler handler.Handler) (bool, error) {
 	}
 
 	output, err := newExpression.Evaluate(parameters)
-	fmt.Println(input)
-	fmt.Println(parameters)
-	fmt.Println(output)
 	if err != nil {
 		return false, err
 	}
