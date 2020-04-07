@@ -264,8 +264,6 @@ func getNextSteps(wi *WorkflowInstance, r ExecutorResponse, stepName string, han
 				continue
 			}
 			result, err := parseStepCondition(step.When, handler)
-			fmt.Println(step.When)
-			fmt.Println(result)
 			if err != nil {
 				return nextMatchedSteps, err
 			}
@@ -303,8 +301,13 @@ func parseStepCondition(input string, handler handler.Handler) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		parameters[parsedTokenValue] = flowDataResult
-		input = strings.Replace(input, "'"+tokenValue+"'", parsedTokenValue, -1)
+		switch flowDataResult.(type) {
+		case string:
+			input = strings.Replace(input, "'"+tokenValue+"'", "'"+flowDataResult.(string)+"'", -1)
+		default:
+			parameters[parsedTokenValue] = flowDataResult
+			input = strings.Replace(input, "'"+tokenValue+"'", parsedTokenValue, -1)
+		}
 	}
 	newExpression, err := govaluate.NewEvaluableExpression(input)
 	if err != nil {
@@ -312,6 +315,9 @@ func parseStepCondition(input string, handler handler.Handler) (bool, error) {
 	}
 
 	output, err := newExpression.Evaluate(parameters)
+	fmt.Println(input)
+	fmt.Println(parameters)
+	fmt.Println(output)
 	if err != nil {
 		return false, err
 	}

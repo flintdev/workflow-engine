@@ -22,7 +22,7 @@ func (fd *FlowData) Get(path string) (interface{}, error) {
 	objName := fd.WFObjName
 	r, err := util.GetWorkflowObjectFlowDataValue(kubeconfig, objName, path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return r, err
 }

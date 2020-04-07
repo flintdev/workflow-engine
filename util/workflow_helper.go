@@ -80,7 +80,12 @@ func GetWorkflowObjectFlowDataValue(kubeconfig *string, objName string, path str
 	if err != nil {
 		return "", err
 	}
-	return m[path], nil
+	if value, exist := m[path]; exist {
+		return value, nil
+	} else {
+		message := fmt.Sprintf("key %s is not found in flow data", path)
+		return nil, errors.New(message)
+	}
 }
 
 func SetWorkflowObjectMessage(kubeconfig *string, objName string, wfMessage string) error {

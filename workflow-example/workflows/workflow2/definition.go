@@ -2,8 +2,8 @@ package workflow2
 
 import (
 	"encoding/json"
-	"fmt"
 	workflowFramework "github.com/flintdev/workflow-engine/engine"
+	"go.uber.org/zap"
 )
 
 func ParseDefinition() workflowFramework.Workflow {
@@ -76,9 +76,13 @@ func ParseDefinition() workflowFramework.Workflow {
 }`
 	err := json.Unmarshal([]byte(definition), &w)
 
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Error(err.Error())
 	}
+
 	return w
 
 }
