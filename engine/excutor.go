@@ -281,6 +281,7 @@ func getNextSteps(wi *WorkflowInstance, r ExecutorResponse, stepName string, han
 
 //parse step condition
 func parseStepCondition(input string, handler handler.Handler) (bool, error) {
+	input = strings.Replace(input, "\"", "'", -1)
 	expression, err := govaluate.NewEvaluableExpression(input)
 	if err != nil {
 		return false, err

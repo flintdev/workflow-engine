@@ -156,6 +156,7 @@ func ParseStepTrigger(st StepTriggerCondition, e Event) (bool, error) {
 }
 
 func ParseTriggerCondition(input string, e Event) (bool, error) {
+	input = strings.Replace(input, "\"", "'", -1)
 	expression, err := govaluate.NewEvaluableExpression(input)
 	if err != nil {
 		return false, err

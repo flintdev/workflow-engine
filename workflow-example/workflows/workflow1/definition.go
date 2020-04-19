@@ -21,7 +21,7 @@ func ParseDefinition() workflowFramework.Workflow {
 			"type": "automation",
 			"nextSteps": [{
 				"name": "step2",
-				"when": "'$.workflow1.step1.field1' == 'test1'"
+				"when": "\"$.workflow1.step1.field1\" == \"test1\""
 			}]
 		},
 		"step2": {
