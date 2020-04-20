@@ -53,7 +53,7 @@ type Step struct {
 
 type Workflow struct {
 	Name    string           `json:"name"`
-	StartAt string           `json:"startAt"`
+	StartAt []string         `json:"startAt"`
 	Trigger TriggerCondition `json:"trigger"`
 	Steps   map[string]Step  `json:"steps"`
 }
@@ -312,7 +312,8 @@ func triggerWorkflowInstance(kubeconfig *string, objName string, wi WorkflowInst
 					fd.WFObjName = wfObjName
 					var h handler.Handler
 					h.FlowData = fd
-					wi.ExecuteWorkflow(kubeconfig, logger, h, wfObjName, currentStep, true)
+					steps := []string{currentStep}
+					wi.ExecuteWorkflow(kubeconfig, logger, h, wfObjName, steps, true)
 				}
 			}
 		}

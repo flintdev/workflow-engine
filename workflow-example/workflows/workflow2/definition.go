@@ -10,7 +10,7 @@ func ParseDefinition() workflowFramework.Workflow {
 	var w workflowFramework.Workflow
 	definition := `{
 	"name": "workflow2",
-	"startAt": "step1",
+	"startAt": ["step1", "step2"],
 	"trigger": {
 		"model": "approval",
 		"eventType": "ADDED"
@@ -19,17 +19,17 @@ func ParseDefinition() workflowFramework.Workflow {
 		"step1": {
 			"type": "automation",
 			"nextSteps": [{
-					"name": "step2"
+					"name": "step3"
 				},
 				{
-					"name": "step3"
+					"name": "step4"
 				}
 			]
 		},
 		"step2": {
 			"type": "automation",
 			"nextSteps": [{
-				"name": "step4"
+				"name": "end"
 			}]
 		},
 		"step3": {

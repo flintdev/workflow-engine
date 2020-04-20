@@ -18,29 +18,32 @@ type ExecutorResponse struct {
 	Status  string `json:"status"`
 }
 
-func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, logger *zap.Logger, handler handler.Handler, wfObjName string, stepName string, isPendingManualStep bool) {
-	logInfo(logger, wfObjName, stepName, "Start Executing Workflow")
+func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, logger *zap.Logger, handler handler.Handler, wfObjName string, steps []string, isPendingManualStep bool) {
+	stepsString := strings.Join(steps[:], ",")
+	logInfo(logger, wfObjName, stepsString, "Start Executing Workflow")
 	port, err := getPythonExecutorPort()
 	if err != nil {
-		logError(logger, wfObjName, stepName, err.Error())
+		logError(logger, wfObjName, stepsString, err.Error())
 		err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
 		if err != nil {
-			logError(logger, wfObjName, stepName, err.Error())
+			logError(logger, wfObjName, stepsString, err.Error())
 			return
 		}
 		return
 	}
 	err = util.SetWorkflowObjectToRunning(kubeconfig, wfObjName)
 	if err != nil {
-		logError(logger, wfObjName, stepName, err.Error())
+		logError(logger, wfObjName, stepsString, err.Error())
 		err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
 		if err != nil {
-			logError(logger, wfObjName, stepName, err.Error())
+			logError(logger, wfObjName, stepsString, err.Error())
 			return
 		}
 		return
 	}
-	executeStep(kubeconfig, wi, logger, port, wfObjName, stepName, handler, isPendingManualStep)
+	for _, stepName := range steps {
+		go executeStep(kubeconfig, wi, logger, port, wfObjName, stepName, handler, isPendingManualStep)
+	}
 }
 func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, port string, wfObjName string, stepName string, handler handler.Handler, isPendingManualStep bool) {
 	// handle hub step
