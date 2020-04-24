@@ -31,24 +31,18 @@ type NextStep struct {
 }
 
 type TriggerCondition struct {
-	Model     string `json:"model"`
-	EventType string `json:"eventType"`
-	When      string `json:"when"`
-}
-
-type StepTriggerCondition struct {
-	StepName  string `json:"stepName"`
+	Name      string
 	Model     string `json:"model"`
 	EventType string `json:"eventType"`
 	When      string `json:"when"`
 }
 
 type Step struct {
-	Type        string               `json:"type"`
-	StepTrigger StepTriggerCondition `json:"trigger"`
-	Inputs      []string             `json:"inputs"`
-	Condition   string               `json:"condition"`
-	NextSteps   []NextStep           `json:"nextSteps"`
+	Type        string           `json:"type"`
+	StepTrigger TriggerCondition `json:"trigger"`
+	Inputs      []string         `json:"inputs"`
+	Condition   string           `json:"condition"`
+	NextSteps   []NextStep       `json:"nextSteps"`
 }
 
 type Workflow struct {
@@ -60,7 +54,7 @@ type Workflow struct {
 
 type WorkflowInstance struct {
 	Workflow     Workflow
-	StepTriggers []StepTriggerCondition
+	StepTriggers map[string][]TriggerCondition
 }
 
 type App struct {
@@ -90,6 +84,7 @@ type Config struct {
 
 func CreateWorkflowInstance() WorkflowInstance {
 	var wi WorkflowInstance
+	wi.StepTriggers = make(map[string][]TriggerCondition)
 	return wi
 }
 
@@ -102,9 +97,14 @@ func (wi *WorkflowInstance) RegisterWorkflowDefinition(f func() Workflow) {
 	w := f()
 	for stepName, step := range w.Steps {
 		if step.Type == "manual" {
+			var stepTriggerConditions []TriggerCondition
 			stepTrigger := w.Steps[stepName].StepTrigger
-			stepTrigger.StepName = stepName
-			wi.StepTriggers = append(wi.StepTriggers, stepTrigger)
+			for _, nextStep := range step.NextSteps {
+				stepTrigger.When = nextStep.When
+				stepTrigger.Name = nextStep.Name
+				stepTriggerConditions = append(stepTriggerConditions, stepTrigger)
+			}
+			wi.StepTriggers[stepName] = stepTriggerConditions
 		}
 	}
 	wi.Workflow = w
@@ -138,22 +138,22 @@ func ParseTrigger(t TriggerCondition, e Event) (bool, error) {
 	}
 }
 
-func ParseStepTrigger(st StepTriggerCondition, e Event) (bool, error) {
-	whenExpresionResult := true
-	if st.When != "" {
-		result, err := ParseTriggerCondition(st.When, e)
-		if err != nil {
-			return false, err
-		}
-		whenExpresionResult = result
-	}
-
-	if e.Model == st.Model && strings.ToLower(e.Type) == strings.ToLower(st.EventType) && whenExpresionResult {
-		return true, nil
-	} else {
-		return false, nil
-	}
-}
+//func ParseStepTrigger(st StepTriggerCondition, e Event) (bool, error) {
+//	whenExpresionResult := true
+//	if st.When != "" {
+//		result, err := ParseTriggerCondition(st.When, e)
+//		if err != nil {
+//			return false, err
+//		}
+//		whenExpresionResult = result
+//	}
+//
+//	if e.Model == st.Model && strings.ToLower(e.Type) == strings.ToLower(st.EventType) && whenExpresionResult {
+//		return true, nil
+//	} else {
+//		return false, nil
+//	}
+//}
 
 func ParseTriggerCondition(input string, e Event) (bool, error) {
 	input = strings.Replace(input, "\"", "'", -1)
@@ -283,39 +283,8 @@ func triggerWorkflowInstance(kubeconfig *string, objName string, wi WorkflowInst
 		)
 	}
 	if isWorkflowTriggered {
-		for _, stepTrigger := range wi.StepTriggers {
-			result, err := ParseStepTrigger(stepTrigger, e)
-			if err != nil {
-				logger.Warn(err.Error(),
-					zap.String("Kind", e.Kind),
-					zap.String("Name", e.Name),
-					zap.String("Version", e.Version),
-					zap.String("Trigger condition", stepTrigger.When),
-				)
-				continue
-			}
-			if result {
-				currentStep := stepTrigger.StepName
-				objList, err := util.GetPendingWorkflowList(kubeconfig, objName, currentStep)
-				if err != nil {
-					logger.Error(err.Error(),
-						zap.String("Kind", e.Kind),
-						zap.String("Name", e.Name),
-						zap.String("Version", e.Version),
-					)
-					continue
-				}
-				for _, obj := range objList.Items {
-					wfObjName := obj.GetName()
-					var fd flowdata.FlowData
-					fd.Kubeconfig = kubeconfig
-					fd.WFObjName = wfObjName
-					var h handler.Handler
-					h.FlowData = fd
-					steps := []string{currentStep}
-					wi.ExecuteWorkflow(kubeconfig, logger, h, wfObjName, steps, true)
-				}
-			}
+		for stepName, stepTriggerConditions := range wi.StepTriggers {
+			go handlePendingStepsTrigger(wi, kubeconfig, logger, stepName, stepTriggerConditions, objName, e)
 		}
 	} else {
 		result, err := ParseTrigger(wi.Workflow.Trigger, e)
@@ -338,9 +307,50 @@ func triggerWorkflowInstance(kubeconfig *string, objName string, wi WorkflowInst
 			if err != nil {
 				logger.Error(err.Error())
 			} else {
-				wi.ExecuteWorkflow(kubeconfig, logger, h, wfObjName, startAt, false)
+				var emptyNextMatchedSteps []NextStep
+				wi.ExecuteWorkflow(kubeconfig, logger, h, wfObjName, startAt, false, emptyNextMatchedSteps)
 			}
 
+		}
+	}
+}
+
+func handlePendingStepsTrigger(wi WorkflowInstance, kubeconfig *string, logger *zap.Logger, stepName string, stepTriggerConditions []TriggerCondition, objName string, e Event) {
+	var nextMatchedSteps []NextStep
+	for _, stepTriggerCondition := range stepTriggerConditions {
+		result, err := ParseTrigger(stepTriggerCondition, e)
+		if err != nil {
+			logger.Warn(err.Error(),
+				zap.String("Kind", e.Kind),
+				zap.String("Name", e.Name),
+				zap.String("Version", e.Version),
+				zap.String("Trigger condition", stepTriggerCondition.When),
+			)
+			continue
+		}
+		if result {
+			nextMatchedSteps = append(nextMatchedSteps, NextStep{Name: stepTriggerCondition.Name, When: stepTriggerCondition.When})
+		}
+	}
+	if len(nextMatchedSteps) > 0 {
+		objList, err := util.GetPendingWorkflowList(kubeconfig, objName, stepName)
+		if err != nil {
+			logger.Error(err.Error(),
+				zap.String("Kind", e.Kind),
+				zap.String("Name", e.Name),
+				zap.String("Version", e.Version),
+			)
+			return
+		}
+		for _, obj := range objList.Items {
+			wfObjName := obj.GetName()
+			var fd flowdata.FlowData
+			fd.Kubeconfig = kubeconfig
+			fd.WFObjName = wfObjName
+			var h handler.Handler
+			h.FlowData = fd
+			steps := []string{stepName}
+			wi.ExecuteWorkflow(kubeconfig, logger, h, wfObjName, steps, true, nextMatchedSteps)
 		}
 	}
 }

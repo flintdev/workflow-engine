@@ -35,12 +35,17 @@ func ParseDefinition() workflowFramework.Workflow {
 			"type": "manual",
 			"trigger": {
 				"model": "expense",
-				"eventType": "MODIFIED",
-				"when": "'spec.approval' == 'true'"
+				"eventType": "MODIFIED"
 			},
 			"nextSteps": [{
-				"name": "step4"
-			}]
+					"name": "step4",
+					"when": "'spec.approval' == 'true'"
+				},
+				{
+					"name": "end",
+					"when": "'spec.approval' == 'false'"
+				}
+			]
 		},
 		"step4": {
 			"type": "automation",
@@ -57,13 +62,13 @@ func ParseDefinition() workflowFramework.Workflow {
 		"step5": {
 			"type": "automation",
 			"nextSteps": [{
-				"name": "step6",
-				"when": "'$.workflow1.step1.field5' < '2020-03-01'"
-			},
-			{
-				"name": "step7",
-				"when": "'$.workflow1.step1.field5' >= '2020-03-01'"
-			}
+					"name": "step6",
+					"when": "'$.workflow1.step1.field5' < '2020-03-01'"
+				},
+				{
+					"name": "step7",
+					"when": "'$.workflow1.step1.field5' >= '2020-03-01'"
+				}
 			]
 		},
 		"step6": {

@@ -18,7 +18,7 @@ type ExecutorResponse struct {
 	Status  string `json:"status"`
 }
 
-func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, logger *zap.Logger, handler handler.Handler, wfObjName string, steps []string, isPendingManualStep bool) {
+func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, logger *zap.Logger, handler handler.Handler, wfObjName string, steps []string, isPendingManualStep bool, nextMatchedSteps []NextStep) {
 	stepsString := strings.Join(steps[:], ",")
 	logInfo(logger, wfObjName, stepsString, "Start Executing Workflow")
 	port, err := getPythonExecutorPort()
@@ -42,11 +42,12 @@ func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, logger *zap.Logg
 		return
 	}
 	for _, stepName := range steps {
-		go executeStep(kubeconfig, wi, logger, port, wfObjName, stepName, handler, isPendingManualStep)
+		go executeStep(kubeconfig, wi, logger, port, wfObjName, stepName, handler, isPendingManualStep, nextMatchedSteps)
 	}
 }
-func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, port string, wfObjName string, stepName string, handler handler.Handler, isPendingManualStep bool) {
+func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, port string, wfObjName string, stepName string, handler handler.Handler, isPendingManualStep bool, nextMatchedSteps []NextStep) {
 	// handle hub step
+	var emptyNextMatchedSteps []NextStep
 	if wi.Workflow.Steps[stepName].Type == "hub" {
 		inputStepsList := wi.Workflow.Steps[stepName].Inputs
 		condition := wi.Workflow.Steps[stepName].Condition
@@ -83,6 +84,40 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 			if err != nil {
 				logError(logger, wfObjName, stepName, err.Error())
 				return
+			}
+			return
+		}
+		err = util.SetWorkflowObjectStepToComplete(kubeconfig, wfObjName, stepName, "")
+		if err != nil {
+			logError(logger, wfObjName, stepName, err.Error())
+			err := util.SetWorkflowObjectStepToFailure(kubeconfig, wfObjName, stepName, err.Error())
+			if err != nil {
+				logError(logger, wfObjName, stepName, err.Error())
+				return
+			}
+		}
+		if len(nextMatchedSteps) == 1 && len(wi.Workflow.Steps[nextMatchedSteps[0].Name].NextSteps) == 0 {
+			wfStatus, err := util.GetWorkflowObjectStatus(kubeconfig, wfObjName)
+			if err != nil {
+				logError(logger, wfObjName, stepName, err.Error())
+				err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
+				if err != nil {
+					logError(logger, wfObjName, stepName, err.Error())
+					return
+				}
+				return
+			}
+			if wfStatus == "Failure" {
+				return
+			}
+			err = checkAllExistingStepsStatus(kubeconfig, logger, wfObjName, stepName)
+			if err != nil {
+				return
+			}
+			return
+		} else {
+			for _, step := range nextMatchedSteps {
+				go executeStep(kubeconfig, wi, logger, port, wfObjName, step.Name, handler, false, emptyNextMatchedSteps)
 			}
 			return
 		}
@@ -210,7 +245,7 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 			}
 		} else {
 			for _, step := range nextSteps {
-				go executeStep(kubeconfig, wi, logger, port, wfObjName, step.Name, handler, false)
+				go executeStep(kubeconfig, wi, logger, port, wfObjName, step.Name, handler, false, emptyNextMatchedSteps)
 			}
 		}
 	}

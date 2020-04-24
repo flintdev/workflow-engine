@@ -54,12 +54,17 @@ func ParseDefinition() workflowFramework.Workflow {
 			"type": "manual",
 			"trigger": {
 				"model": "approval",
-				"eventType": "MODIFIED",
-				"when": "'spec.approval' == 'true'"
+				"eventType": "MODIFIED"
 			},
 			"nextSteps": [{
-				"name": "step7"
-			}]
+					"name": "step7",
+					"when": "'spec.approval' == 'true'"
+				},
+				{
+					"name": "end",
+					"when": "'spec.approval' == 'true'"
+				}
+			]
 		},
 		"step7": {
 			"type": "hub",
