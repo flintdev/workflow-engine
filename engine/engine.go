@@ -7,6 +7,7 @@ import (
 	"github.com/Knetic/govaluate"
 	"github.com/flintdev/workflow-engine/handler"
 	"github.com/flintdev/workflow-engine/handler/flowdata"
+	"github.com/flintdev/workflow-engine/healthCheck"
 	"github.com/flintdev/workflow-engine/util"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -365,6 +366,7 @@ func BulkWatchObject(kubeconfig *string, namespace string, gvrList []GVR) <-chan
 		chans = append(chans, util.WatchObject(kubeconfig, namespace, gvr.Group, gvr.Version, gvr.Resource))
 	}
 	ch := mergeWatchChannels(chans)
+	go healthCheck.HealthCheck()
 	return ch
 }
 
