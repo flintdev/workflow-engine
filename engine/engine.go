@@ -366,7 +366,7 @@ func BulkWatchObject(kubeconfig *string, namespace string, gvrList []GVR) <-chan
 		chans = append(chans, util.WatchObject(kubeconfig, namespace, gvr.Group, gvr.Version, gvr.Resource))
 	}
 	ch := mergeWatchChannels(chans)
-	go healthCheck.HealthCheck()
+	go healthCheck.HealthCheck(kubeconfig)
 	return ch
 }
 

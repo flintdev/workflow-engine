@@ -21,17 +21,7 @@ type ExecutorResponse struct {
 func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, logger *zap.Logger, handler handler.Handler, wfObjName string, steps []string, isPendingManualStep bool, nextMatchedSteps []NextStep) {
 	stepsString := strings.Join(steps[:], ",")
 	logInfo(logger, wfObjName, stepsString, "Start Executing Workflow")
-	port, err := getPythonExecutorPort()
-	if err != nil {
-		logError(logger, wfObjName, stepsString, err.Error())
-		err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
-		if err != nil {
-			logError(logger, wfObjName, stepsString, err.Error())
-			return
-		}
-		return
-	}
-	err = util.SetWorkflowObjectToRunning(kubeconfig, wfObjName)
+	err := util.SetWorkflowObjectToRunning(kubeconfig, wfObjName)
 	if err != nil {
 		logError(logger, wfObjName, stepsString, err.Error())
 		err := util.SetWorkflowObjectToFailure(kubeconfig, wfObjName, err.Error())
@@ -42,10 +32,10 @@ func (wi *WorkflowInstance) ExecuteWorkflow(kubeconfig *string, logger *zap.Logg
 		return
 	}
 	for _, stepName := range steps {
-		go executeStep(kubeconfig, wi, logger, port, wfObjName, stepName, handler, isPendingManualStep, nextMatchedSteps)
+		go executeStep(kubeconfig, wi, logger, wfObjName, stepName, handler, isPendingManualStep, nextMatchedSteps)
 	}
 }
-func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, port string, wfObjName string, stepName string, handler handler.Handler, isPendingManualStep bool, nextMatchedSteps []NextStep) {
+func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, wfObjName string, stepName string, handler handler.Handler, isPendingManualStep bool, nextMatchedSteps []NextStep) {
 	// handle hub step
 	var emptyNextMatchedSteps []NextStep
 	if wi.Workflow.Steps[stepName].Type == "hub" {
@@ -117,7 +107,7 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 			return
 		} else {
 			for _, step := range nextMatchedSteps {
-				go executeStep(kubeconfig, wi, logger, port, wfObjName, step.Name, handler, false, emptyNextMatchedSteps)
+				go executeStep(kubeconfig, wi, logger, wfObjName, step.Name, handler, false, emptyNextMatchedSteps)
 			}
 			return
 		}
@@ -161,8 +151,8 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 	}
 
 	// start executing step
-	url := fmt.Sprintf("http://127.0.0.1:%s/execute?workflow=%s&step=%s&obj_name=%s&group=%s&version=%s&resource=%s&namespace=%s",
-		port, wi.Workflow.Name, stepName, wfObjName, util.WFGroup, util.WFVersion, util.WFResource, util.WFNamespace)
+	url := fmt.Sprintf("http://python-executor:8080/execute?workflow=%s&step=%s&obj_name=%s&group=%s&version=%s&resource=%s&namespace=%s",
+		wi.Workflow.Name, stepName, wfObjName, util.WFGroup, util.WFVersion, util.WFResource, util.WFNamespace)
 	message := fmt.Sprintf("Sent GET request to %s", url)
 	logInfo(logger, wfObjName, stepName, message)
 	response, err := http.Get(url)
@@ -245,7 +235,7 @@ func executeStep(kubeconfig *string, wi *WorkflowInstance, logger *zap.Logger, p
 			}
 		} else {
 			for _, step := range nextSteps {
-				go executeStep(kubeconfig, wi, logger, port, wfObjName, step.Name, handler, false, emptyNextMatchedSteps)
+				go executeStep(kubeconfig, wi, logger, wfObjName, step.Name, handler, false, emptyNextMatchedSteps)
 			}
 		}
 	}
@@ -374,15 +364,6 @@ func ParseExecutorResponse(body []byte) (ExecutorResponse, error) {
 		return r, err
 	}
 	return r, nil
-}
-
-func getPythonExecutorPort() (string, error) {
-	data, err := ioutil.ReadFile("/tmp/flint_python_executor_port")
-	if err != nil {
-		return "", err
-	}
-	port := string(data)
-	return port, nil
 }
 
 func logInfo(logger *zap.Logger, wfObjName string, stepName string, infoMessage string) {
